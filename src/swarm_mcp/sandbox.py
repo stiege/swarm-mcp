@@ -47,7 +47,7 @@ class SandboxSpec:
     resources: list[str] = field(default_factory=list)  # Named resource pools to acquire
 
     # Runtime
-    timeout: int = 120
+    timeout: int = 1800  # 30 minutes default
     env_vars: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:

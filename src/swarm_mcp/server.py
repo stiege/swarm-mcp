@@ -844,6 +844,14 @@ def filter(
         if not isinstance(ref_list, list) or len(ref_list) == 0:
             return json.dumps(response_tools.error_response("invalid_input", "refs must be a non-empty JSON array"))
 
+        # Resolve type from registry
+        type_content = get_type(declared_type)
+        if not type_content:
+            return json.dumps(response_tools.error_response(
+                "type_not_found",
+                f"Type '{declared_type}' not found in registry. Define it in a types/ directory and register the project with wrap_project.",
+            ))
+
         run_id = _generate_run_id()
         valid_refs = []
         invalid_refs = []
@@ -853,7 +861,7 @@ def filter(
         for r in ref_list:
             ref_str = r.get("ref") if isinstance(r, dict) else r
             text = _resolve_ref(ref_str)
-            prompt = build_validation_prompt(text, declared_type)
+            prompt = build_validation_prompt(text, type_content)
             tasks.append({
                 "prompt": prompt,
                 "model": model,
@@ -997,9 +1005,15 @@ def retry(
                 prior_errors.append(result.error)
                 continue
 
-            # If declared_type, validate the output
+            # If declared_type, validate the output against the registered type
             if declared_type and result.text:
-                validation_prompt = build_validation_prompt(result.text, declared_type)
+                type_content = get_type(declared_type)
+                if not type_content:
+                    return json.dumps(response_tools.error_response(
+                        "type_not_found",
+                        f"Type '{declared_type}' not found in registry.",
+                    ))
+                validation_prompt = build_validation_prompt(result.text, type_content)
                 val_spec = _resolve_spec(None, model=model, timeout=60)
                 val_result = _run_with_semaphore(validation_prompt, val_spec, run_id, f"validate-{attempt}")
 
@@ -1612,14 +1626,15 @@ def validate(
             if "ref" in ref_data:
                 artifact = _resolve_ref(ref_data["ref"])
 
-        # Resolve type — check registry first, fall back to inline description
+        # Resolve type from registry — types must be registered, no inline descriptions
         type_content = get_type(declared_type)
-        if type_content:
-            type_desc = declared_type  # use the name, build_validation_prompt will resolve
-        else:
-            type_desc = declared_type  # inline description
+        if not type_content:
+            return json.dumps(response_tools.error_response(
+                "type_not_found",
+                f"Type '{declared_type}' not found in registry. Define it in a types/ directory and register the project with wrap_project.",
+            ))
 
-        prompt = build_validation_prompt(artifact, type_desc)
+        prompt = build_validation_prompt(artifact, type_content)
 
         spec = _resolve_spec(
             sandbox, model=model, timeout=timeout,
