@@ -13,7 +13,7 @@
 Install from PyPI:
 
 ```bash
-uv tool install swarm-mcp
+uv tool install mcp-swarm
 ```
 
 Or install from a local clone of the repository:
@@ -38,7 +38,7 @@ Add swarm-mcp to Claude Code's MCP server list. Edit `~/.claude/settings.json` (
 {
   "mcpServers": {
     "swarm-mcp": {
-      "command": "swarm-mcp",
+      "command": "mcp-swarm",
       "type": "stdio"
     }
   }
@@ -102,7 +102,7 @@ To pass environment variables through the MCP config:
 {
   "mcpServers": {
     "swarm-mcp": {
-      "command": "swarm-mcp",
+      "command": "mcp-swarm",
       "type": "stdio",
       "env": {
         "SWARM_MAX_CONCURRENT": "20",

@@ -2,7 +2,7 @@
 
 **Orchestrate parallel Claude agent workloads via Docker containers.**
 
-[![PyPI](https://img.shields.io/pypi/v/swarm-mcp)](https://pypi.org/project/swarm-mcp/)
+[![PyPI](https://img.shields.io/pypi/v/mcp-swarm)](https://pypi.org/project/mcp-swarm/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Docker Required](https://img.shields.io/badge/docker-required-blue)](https://docker.com)
@@ -79,10 +79,10 @@ flowchart LR
 
 ```bash
 # Run directly
-uvx swarm-mcp
+uvx mcp-swarm
 
 # Or install as a tool
-uv tool install swarm-mcp
+uv tool install mcp-swarm
 ```
 
 ### Configure Claude Code
@@ -94,7 +94,7 @@ Add to your Claude settings (`~/.claude.json` or project `.claude.json`):
   "mcpServers": {
     "swarm": {
       "command": "uvx",
-      "args": ["swarm-mcp"]
+      "args": ["mcp-swarm"]
     }
   }
 }
