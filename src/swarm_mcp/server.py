@@ -187,7 +187,7 @@ def run(
     tools: str = "Read,Write,Glob,Grep,Bash",
     mounts: str = "[]",
     model: str = "sonnet",
-    timeout: int = 120,
+    timeout: int | None = None,
     system_prompt: str | None = None,
     claude_md: str | None = None,
     output_schema: str | None = None,
@@ -282,7 +282,7 @@ def map(
     network: bool = NETWORK_DEFAULT,
     tools: str = "Read,Write,Glob,Grep,Bash",
     model: str = "sonnet",
-    timeout: int = 120,
+    timeout: int | None = None,
     max_concurrency: int = 5,
     system_prompt: str | None = None,
     claude_md: str | None = None,
@@ -403,7 +403,7 @@ def reduce(
     network: bool = NETWORK_DEFAULT,
     tools: str = "Read,Write,Glob,Grep,Bash",
     model: str = "sonnet",
-    timeout: int = 120,
+    timeout: int | None = None,
     system_prompt: str | None = None,
     mcps: str | list | None = None,
 ) -> str:
@@ -465,7 +465,7 @@ def map_reduce(
     tools: str = "Read,Write,Glob,Grep,Bash",
     model: str = "sonnet",
     reduce_model: str = "",
-    timeout: int = 120,
+    timeout: int | None = None,
     max_concurrency: int = 5,
     system_prompt: str | None = None,
     reduce_system_prompt: str | None = None,
@@ -728,7 +728,7 @@ def filter(
     refs: str,
     declared_type: str,
     model: str = "sonnet",
-    timeout: int = 120,
+    timeout: int | None = None,
 ) -> str:
     """Filter refs by type validation — keep only results that match the declared type.
 
@@ -860,7 +860,7 @@ def retry(
     max_attempts: int = 3,
     sandbox: str | None = None,
     model: str = "sonnet",
-    timeout: int = 120,
+    timeout: int | None = None,
     declared_type: str | None = None,
     mcps: str | list | None = None,
 ) -> str:
@@ -1354,7 +1354,7 @@ def validate(
     declared_type: str,
     sandbox: str | None = None,
     model: str = "sonnet",
-    timeout: int = 120,
+    timeout: int | None = None,
 ) -> str:
     """Validate an artifact against a declared type. Runs a type-checker agent that inspects
     the artifact and reports VALID/PARTIAL/INVALID with per-criterion results.
