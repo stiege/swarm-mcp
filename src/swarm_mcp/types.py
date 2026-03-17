@@ -1,41 +1,38 @@
 """Natural language type system for swarm agents.
 
-Types are markdown files in ~/.claude/types/ that describe what something is,
-what it contains, and how to verify it. They reference each other with [name]
-syntax, resolved by inlining the referenced type's content.
+Types are markdown files that describe what something is, what it contains,
+and how to verify it. They reference each other with [name] syntax,
+resolved by inlining the referenced type's content.
 
-The LLM is the type checker — verification prompts ask an agent to check
-whether an artifact matches its declared type.
+Types are found via the registry search paths (project dir → ~/.claude/types/).
 """
 
 import logging
 import os
 import re
 
+from . import registry
+
 logger = logging.getLogger(__name__)
 
-TYPES_DIR = os.path.expanduser("~/.claude/types")
 MAX_RESOLVE_DEPTH = 3
 
 
 def list_types() -> list[dict]:
-    """List all registered types."""
-    if not os.path.isdir(TYPES_DIR):
-        return []
+    """List all registered types across all search paths."""
+    resources = registry.list_resources("types", ".md")
     result = []
-    for entry in sorted(os.scandir(TYPES_DIR), key=lambda e: e.name):
-        if entry.name.endswith(".md"):
-            name = entry.name[:-3]
-            with open(entry.path) as f:
-                first_line = f.readline().strip()
-            result.append({"name": name, "summary": first_line})
+    for r in resources:
+        with open(r["path"]) as f:
+            first_line = f.readline().strip()
+        result.append({"name": r["name"], "summary": first_line, "source": r["source"]})
     return result
 
 
 def get_type(name: str) -> str | None:
-    """Get the raw content of a type definition."""
-    path = os.path.join(TYPES_DIR, f"{name}.md")
-    if not os.path.exists(path):
+    """Get the raw content of a type definition. Searches project dir then ~/.claude/types/."""
+    path = registry.find_resource("types", name, ".md")
+    if path is None:
         return None
     with open(path) as f:
         return f.read().strip()
@@ -86,11 +83,7 @@ def build_type_context(input_type: str | None, output_type: str | None) -> str:
 
 
 def build_validation_prompt(artifact_description: str, declared_type: str) -> str:
-    """Build a prompt that asks an agent to validate an artifact against a type.
-
-    The agent acts as a type checker — it inspects the artifact and reports
-    whether it matches the type's verification criteria.
-    """
+    """Build a prompt that asks an agent to validate an artifact against a type."""
     resolved_type = resolve_type(declared_type)
 
     return f"""You are a type validator. Your job is to check whether an artifact matches its declared type.

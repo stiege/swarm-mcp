@@ -10,6 +10,7 @@ from mcp.server.fastmcp import FastMCP
 from . import tools as response_tools
 from .agent import AgentResult, run_agent
 from .sandbox import SandboxSpec, list_sandboxes, load_sandbox, resolve_sandbox, save_sandbox
+from . import registry
 from .types import build_validation_prompt, get_type, list_types as _list_types, resolve_type
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -24,7 +25,7 @@ _semaphore = threading.Semaphore(MAX_CONCURRENT)
 # Set to False only if using a local model backend (e.g. Ollama) in the future.
 NETWORK_DEFAULT = True
 
-PIPELINE_DIR = os.path.expanduser("~/.claude/pipelines")
+# PIPELINE_DIR removed — pipelines now found via registry search paths
 
 
 def _generate_run_id() -> str:
@@ -754,9 +755,9 @@ def pipeline(
         if definition.startswith("{") or definition.startswith("["):
             pipeline_def = json.loads(definition)
         else:
-            path = os.path.join(PIPELINE_DIR, f"{definition}.json")
-            if not os.path.exists(path):
-                return json.dumps(response_tools.error_response("not_found", f"Pipeline not found: {path}"))
+            path = registry.find_resource("pipelines", definition, ".json")
+            if path is None:
+                return json.dumps(response_tools.error_response("not_found", f"Pipeline '{definition}' not found in search paths: {registry._search_paths.get('pipelines', [])}"))
             with open(path) as f:
                 pipeline_def = json.load(f)
 
@@ -769,6 +770,12 @@ def pipeline(
         results = []
         step_results = {}  # id -> AgentResult
         retry_counts = {}  # step_id -> count
+
+        # Create a shared directory that all pipeline steps can read/write.
+        # Mounted at /shared/ in each container — use this for inter-step artifacts.
+        shared_dir = os.path.join("/tmp/swarm-mcp", run_id, "shared")
+        os.makedirs(shared_dir, exist_ok=True)
+        logger.info("Pipeline %s shared dir: %s", run_id, shared_dir)
 
         i = 0
         while i < len(steps):
@@ -806,6 +813,10 @@ def pipeline(
 
             overrides = {k: v for k, v in step.items() if k not in ("prompt", "sandbox", "id", "on_fail", "next", "condition", "max_retries") and v is not None}
             spec = _resolve_spec(step.get("sandbox", default_sandbox), **overrides)
+
+            # Inject shared directory mount for inter-step file communication
+            shared_mount = {"host_path": shared_dir, "container_path": "/shared", "readonly": False}
+            spec = spec.merge({"mounts": (spec.mounts or []) + [shared_mount]})
 
             result = _run_with_semaphore(prompt, spec, run_id, step_id)
             results.append(result)
@@ -882,6 +893,50 @@ def list_sandbox_specs() -> str:
     except Exception as e:
         logger.exception("list_sandbox_specs failed")
         return json.dumps(response_tools.error_response("list_error", str(e)))
+
+
+# ── Wrap / Registry Tools ─────────────────────────────────────────
+
+
+@mcp.tool()
+def wrap(path: str) -> str:
+    """Wrap a file or directory into the swarm ref system.
+
+    This is how you bring external objects INTO the monadic context.
+    The wrapped file gets a ref that can be passed to any combinator.
+
+    Args:
+        path: Absolute path to a file or directory on the host.
+    """
+    try:
+        ref_id = registry.wrap_file(path)
+        return json.dumps({"ref": ref_id, "source": path})
+    except FileNotFoundError as e:
+        return json.dumps(response_tools.error_response("not_found", str(e)))
+    except Exception as e:
+        logger.exception("wrap failed")
+        return json.dumps(response_tools.error_response("wrap_error", str(e)))
+
+
+@mcp.tool()
+def wrap_project(project_dir: str) -> str:
+    """Register a project directory's pipelines, sandboxes, and types with the swarm.
+
+    Looks for pipelines/, sandboxes/, types/ subdirectories and adds them
+    to the search paths. After wrapping, named resources from the project
+    are discoverable by all swarm tools (pipeline, run, validate, etc.).
+
+    Args:
+        project_dir: Absolute path to a project root containing pipelines/, sandboxes/, and/or types/ directories.
+    """
+    try:
+        registered = registry.wrap_project(project_dir)
+        if not registered:
+            return json.dumps(response_tools.error_response("empty", f"No pipelines/, sandboxes/, or types/ found in {project_dir}"))
+        return json.dumps({"project": project_dir, "registered": registered})
+    except Exception as e:
+        logger.exception("wrap_project failed")
+        return json.dumps(response_tools.error_response("wrap_project_error", str(e)))
 
 
 # ── Type System Tools ─────────────────────────────────────────────

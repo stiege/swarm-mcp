@@ -3,7 +3,7 @@
 A sandbox spec is the Reader monad's environment: it describes everything
 an agent needs to run without being tied to a specific prompt or task.
 
-Specs are stored as JSON files in ~/.claude/sandboxes/ and referenced by name.
+Specs are found via the registry search paths (project dir → ~/.claude/).
 """
 
 import json
@@ -11,9 +11,9 @@ import logging
 import os
 from dataclasses import asdict, dataclass, field
 
-logger = logging.getLogger(__name__)
+from . import registry
 
-SANDBOX_DIR = os.path.expanduser("~/.claude/sandboxes")
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -61,47 +61,45 @@ class SandboxSpec:
 
 
 def load_sandbox(name: str) -> SandboxSpec:
-    """Load a named sandbox spec from ~/.claude/sandboxes/<name>.json."""
-    path = os.path.join(SANDBOX_DIR, f"{name}.json")
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Sandbox spec not found: {path}")
+    """Load a named sandbox spec. Searches project dir then ~/.claude/sandboxes/."""
+    path = registry.find_resource("sandboxes", name, ".json")
+    if path is None:
+        raise FileNotFoundError(f"Sandbox spec '{name}' not found in search paths: {registry._search_paths.get('sandboxes', [])}")
     with open(path) as f:
         data = json.load(f)
-    # Handle tools as comma-separated string or list
     if isinstance(data.get("tools"), str):
         data["tools"] = [t.strip() for t in data["tools"].split(",") if t.strip()]
     return SandboxSpec(**{k: v for k, v in data.items() if k in SandboxSpec.__dataclass_fields__})
 
 
 def save_sandbox(name: str, spec: SandboxSpec) -> str:
-    """Save a sandbox spec to ~/.claude/sandboxes/<name>.json."""
-    os.makedirs(SANDBOX_DIR, exist_ok=True)
-    path = os.path.join(SANDBOX_DIR, f"{name}.json")
+    """Save a sandbox spec. Writes to first writable search path, or ~/.claude/sandboxes/."""
+    paths = registry._search_paths.get("sandboxes", [])
+    save_dir = paths[0] if paths else os.path.expanduser("~/.claude/sandboxes")
+    os.makedirs(save_dir, exist_ok=True)
+    path = os.path.join(save_dir, f"{name}.json")
     with open(path, "w") as f:
         json.dump(spec.to_dict(), f, indent=2)
     return path
 
 
 def list_sandboxes() -> list[dict]:
-    """List all saved sandbox specs."""
-    if not os.path.isdir(SANDBOX_DIR):
-        return []
+    """List all sandbox specs across all search paths."""
+    resources = registry.list_resources("sandboxes", ".json")
     result = []
-    for entry in sorted(os.scandir(SANDBOX_DIR), key=lambda e: e.name):
-        if entry.name.endswith(".json"):
-            name = entry.name[:-5]
-            try:
-                spec = load_sandbox(name)
-                result.append({"name": name, "model": spec.model, "tools": spec.tools, "mcps": spec.mcps})
-            except Exception:
-                result.append({"name": name, "error": "failed to load"})
+    for r in resources:
+        try:
+            spec = load_sandbox(r["name"])
+            result.append({"name": r["name"], "model": spec.model, "tools": spec.tools, "mcps": spec.mcps, "source": r["source"]})
+        except Exception:
+            result.append({"name": r["name"], "error": "failed to load", "source": r["source"]})
     return result
 
 
 def resolve_sandbox(sandbox: str | None = None, **overrides) -> SandboxSpec:
     """Resolve a sandbox spec from a name or inline overrides.
 
-    If sandbox is a name, load it and apply overrides.
+    If sandbox is a name, load it via registry and apply overrides.
     If sandbox is None, build from overrides with defaults.
     If sandbox is a JSON string, parse it.
     """
@@ -115,7 +113,6 @@ def resolve_sandbox(sandbox: str | None = None, **overrides) -> SandboxSpec:
     else:
         spec = SandboxSpec()
 
-    # Apply overrides
     if overrides:
         override_data = {}
         for k, v in overrides.items():
