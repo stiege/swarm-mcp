@@ -41,22 +41,27 @@ def get_type(name: str) -> str | None:
         return f.read().strip()
 
 
-def resolve_type(description: str, depth: int = 0) -> str:
+def resolve_type(description: str, depth: int = 0, _seen: set | None = None) -> str:
     """Resolve [type-name] references in a type description.
 
     Recursively inlines referenced types up to MAX_RESOLVE_DEPTH.
+    Each type is only inlined once — subsequent references become "(see above)".
     Unknown references are left as-is (the LLM will still understand).
     """
     if depth >= MAX_RESOLVE_DEPTH:
         return description
+    if _seen is None:
+        _seen = set()
 
     def replace_ref(match):
         ref_name = match.group(1)
+        if ref_name in _seen:
+            return f"**{ref_name}** (see above)"
         content = get_type(ref_name)
         if content is None:
             return match.group(0)  # leave as-is
-        # Recursively resolve nested references
-        resolved = resolve_type(content, depth + 1)
+        _seen.add(ref_name)
+        resolved = resolve_type(content, depth + 1, _seen)
         return f"**{ref_name}**: {resolved}"
 
     return re.sub(r"\[([a-zA-Z0-9_-]+)\]", replace_ref, description)
