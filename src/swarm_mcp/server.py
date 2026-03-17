@@ -144,24 +144,9 @@ def _run_par_internal(task_list: list[dict], max_concurrency: int) -> tuple[str,
 
     def execute_task(i_task: tuple[int, dict]) -> AgentResult:
         i, task = i_task
-        spec = _resolve_spec(
-            task.get("sandbox"),
-            network=task.get("network", NETWORK_DEFAULT),
-            tools=task.get("tools", "Read,Write,Glob,Grep,Bash"),
-            mounts=task.get("mounts"),
-            model=task.get("model", "sonnet"),
-            timeout=task.get("timeout", 120),
-            system_prompt=task.get("system_prompt"),
-            claude_md=task.get("claude_md"),
-            output_schema=task.get("output_schema"),
-            mcps=task.get("mcps"),
-            effort=task.get("effort"),
-            max_budget=task.get("max_budget"),
-            env_vars=task.get("env_vars"),
-            input_files=task.get("input_files"),
-            memory=task.get("memory"),
-            cpus=task.get("cpus"),
-        )
+        # Only pass keys that are actually in the task dict — let sandbox defaults apply
+        overrides = {k: v for k, v in task.items() if k not in ("prompt", "sandbox") and v is not None}
+        spec = _resolve_spec(task.get("sandbox"), **overrides)
         return _run_with_semaphore(task["prompt"], spec, run_id, f"agent-{i}")
 
     with ThreadPoolExecutor(max_workers=effective_concurrency) as executor:
@@ -355,19 +340,8 @@ def chain(
             if previous_text is not None:
                 prompt += f"\n\n# Context from previous stage:\n{previous_text}"
 
-            spec = _resolve_spec(
-                stage.get("sandbox"),
-                network=stage.get("network", NETWORK_DEFAULT),
-                tools=stage.get("tools", "Read,Write,Glob,Grep,Bash"),
-                mounts=stage.get("mounts"),
-                model=stage.get("model", "sonnet"),
-                timeout=stage.get("timeout", 120),
-                system_prompt=stage.get("system_prompt"),
-                claude_md=stage.get("claude_md"),
-                output_schema=stage.get("output_schema"),
-                mcps=stage.get("mcps"),
-                effort=stage.get("effort"),
-            )
+            overrides = {k: v for k, v in stage.items() if k not in ("prompt", "sandbox", "id", "on_fail", "next", "condition", "max_retries") and v is not None}
+            spec = _resolve_spec(stage.get("sandbox"), **overrides)
 
             result = _run_with_semaphore(prompt, spec, run_id, f"stage-{i}")
             intermediates.append(result.to_ref_dict(run_id))
@@ -789,19 +763,8 @@ def pipeline(
                 if prev.error:
                     prompt += f"\n\n# Error from previous step ({prev.agent_id}):\n{prev.error}"
 
-            spec = _resolve_spec(
-                step.get("sandbox", default_sandbox),
-                network=step.get("network", NETWORK_DEFAULT),
-                tools=step.get("tools", "Read,Write,Glob,Grep,Bash"),
-                mounts=step.get("mounts"),
-                model=step.get("model", "sonnet"),
-                timeout=step.get("timeout", 120),
-                system_prompt=step.get("system_prompt"),
-                claude_md=step.get("claude_md"),
-                output_schema=step.get("output_schema"),
-                mcps=step.get("mcps"),
-                effort=step.get("effort"),
-            )
+            overrides = {k: v for k, v in step.items() if k not in ("prompt", "sandbox", "id", "on_fail", "next", "condition", "max_retries") and v is not None}
+            spec = _resolve_spec(step.get("sandbox", default_sandbox), **overrides)
 
             result = _run_with_semaphore(prompt, spec, run_id, step_id)
             results.append(result)
