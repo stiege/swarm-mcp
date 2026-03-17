@@ -483,10 +483,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-core-insight-refs-as-lazy-computation" class="md-nav__link">
+  <a href="#why-its-different" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The Core Insight: Refs as Lazy Computation
+        Why it's different
       
     </span>
   </a>
@@ -494,10 +494,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#key-features" class="md-nav__link">
+  <a href="#what-you-can-build" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Key Features
+        What you can build
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-architecture-in-one-picture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The architecture in one picture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-fits-into-the-ecosystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it fits into the ecosystem
       
     </span>
   </a>
@@ -508,7 +530,7 @@
   <a href="#get-started" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Get Started
+        Get started
       
     </span>
   </a>
@@ -1087,10 +1109,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-core-insight-refs-as-lazy-computation" class="md-nav__link">
+  <a href="#why-its-different" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The Core Insight: Refs as Lazy Computation
+        Why it's different
       
     </span>
   </a>
@@ -1098,10 +1120,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#key-features" class="md-nav__link">
+  <a href="#what-you-can-build" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Key Features
+        What you can build
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-architecture-in-one-picture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The architecture in one picture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-fits-into-the-ecosystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it fits into the ecosystem
       
     </span>
   </a>
@@ -1112,7 +1156,7 @@
   <a href="#get-started" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Get Started
+        Get started
       
     </span>
   </a>
@@ -1140,47 +1184,68 @@
 
 
 <h1 id="swarm-mcp">swarm-mcp</h1>
-<p><strong>swarm-mcp</strong> is an MCP server that lets Claude Code orchestrate fleets of parallel Claude AI agents running in isolated Docker containers. You describe the work; swarm-mcp schedules, runs, and composes the results.</p>
-<h2 id="the-core-insight-refs-as-lazy-computation">The Core Insight: Refs as Lazy Computation</h2>
-<p>Every combinator in swarm-mcp returns a <strong>ref</strong> — a lightweight metadata handle — rather than raw text. A ref records where the output lives (<code>run_id</code>, <code>agent_id</code>) without materialising it. Text is only extracted when you explicitly call <code>unwrap()</code>.</p>
-<p>This is the monadic architecture: orchestration and output are decoupled. Because refs are plain data, you can pass them between combinators, store them, inspect them, and compose them before a single byte of text is consumed. The result is pipelines that compose cleanly and scale horizontally without holding large strings in memory.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌─────────────┐     MCP Protocol      ┌──────────────────────┐
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>│             │ ───────────────────►  │                      │
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│ Claude Code │                       │   swarm-mcp server   │
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│             │ ◄───────────────────  │                      │
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>└─────────────┘      refs / text      └──────────┬───────────┘
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>                                                 │ Docker API
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                                    ┌────────────▼────────────┐
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                                    │     Docker Engine        │
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>                                    │                          │
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>                                    │  ┌────────┐ ┌────────┐  │
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>                                    │  │agent-1 │ │agent-2 │  │
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>                                    │  └───┬────┘ └───┬────┘  │
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>                                    │  ┌───▼────┐ ┌───▼────┐  │
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>                                    │  │agent-3 │ │agent-N │  │
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>                                    │  └────────┘ └────────┘  │
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>                                    └─────────────────────────┘
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>                                              │
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>                                         refs │  unwrap()
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>                                              ▼
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>                                    ┌─────────────────────────┐
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>                                    │      text / JSON         │
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>                                    └─────────────────────────┘
+<p><strong>Turn Claude Code into a parallel agent runtime.</strong></p>
+<p>swarm-mcp is an MCP server that gives Claude the ability to spawn other Claude agents — each running in an isolated Docker container — and compose their work using functional combinators. Run 10 code reviews simultaneously. Fan out research across 20 topics. Build multi-step pipelines that retry on failure, gate on type-checked outputs, and share state through a filesystem.</p>
+<p>One Claude session. Many agents working in parallel.</p>
+<hr />
+<h2 id="why-its-different">Why it's different</h2>
+<p>Most "agent orchestration" is just Claude calling itself in a loop, sharing the same context window and the same process. swarm-mcp is different in every dimension that matters:</p>
+<p><strong>Each agent is truly isolated.</strong> Every <code>run()</code> spawns a fresh Docker container with its own filesystem, network policy, memory limit, and process space. A rogue agent can't corrupt another's state. An infinite loop gets killed by the timeout. A <code>rm -rf /</code> stays inside the container. You control exactly which tools and MCP servers each agent can access.</p>
+<p><strong>Outputs are lazy refs, not text.</strong> Combinators return lightweight metadata handles — cost, duration, exit code, provenance hash — without materialising the output text. Text stays on disk until you call <code>unwrap()</code>. This means a pipeline that fans out to 50 agents doesn't flood the MCP protocol with 50 agent responses. You pick and choose what to read.</p>
+<p><strong>Pipelines are data, not code.</strong> The <code>pipeline</code> tool interprets a JSON definition — steps, <code>on_fail</code> handlers, <code>condition</code> guards, <code>retry_if</code> loops, <code>next</code> jumps — the way an interpreter runs a program. The pipeline definition is something you can store in git, version, resume from any step, and share across projects. The interpreter handles the effects: container lifecycle, budget tracking, deadlines, shared file state.</p>
+<p><strong>The type system validates meaning, not structure.</strong> You write types as markdown files describing what an agent should produce — not a JSON schema, not a Pydantic model, but prose that another Claude reads and reasons about. "The analysis must identify at least 3 risk factors." "The code must not contain hardcoded credentials." "The recommendation must cite a specific source." A validator agent reads your type definition and the output together, then issues <code>VALID</code>, <code>PARTIAL</code>, or <code>INVALID</code> with per-criterion feedback. <code>filter()</code> keeps only valid refs. <code>retry()</code> loops until the output validates.</p>
+<p><strong>Agents can use your MCP servers.</strong> Set <code>mcps: ["database-mcp"]</code> in a sandbox and the agent gets access to your knowledge base. Set <code>mcps: ["google-workspace"]</code> and it can read your email. The host <code>.claude.json</code> is copied into the container; MCP server code is mounted at the same path. Agents are powerful because they inherit your tool infrastructure.</p>
+<hr />
+<h2 id="what-you-can-build">What you can build</h2>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>map_reduce(
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  template=&quot;Summarise the key claims in this paper: {input}&quot;,
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  inputs=[&quot;paper1.pdf&quot;, &quot;paper2.pdf&quot;, ..., &quot;paper20.pdf&quot;],
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  synthesis=&quot;Compare the 20 summaries. Identify consensus, contradictions, and gaps.&quot;
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>)
 </code></pre></div>
-<h2 id="key-features">Key Features</h2>
+→ Literature review of 20 papers, parallel fetch and summarise, single synthesised report.</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pipeline({
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  steps: [
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    {id: &quot;implement&quot;, prompt: &quot;Write the feature&quot;},
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    {id: &quot;test&quot;,      prompt: &quot;Write and run tests&quot;, on_fail: &quot;fix&quot;},
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    {id: &quot;fix&quot;,       prompt: &quot;Fix failing tests&quot;, next: &quot;test&quot;, max_retries: 5}
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>  ]
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>})
+</code></pre></div>
+→ Code generation loop that doesn't stop until tests pass.</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>par([
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  {prompt: &quot;Security audit&quot;,    output_type: &quot;security-report&quot;},
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>  {prompt: &quot;Performance audit&quot;, output_type: &quot;performance-report&quot;},
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>  {prompt: &quot;Dependency audit&quot;,  output_type: &quot;dependency-report&quot;}
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>])
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>→ filter each by type → reduce into a single release readiness report
+</code></pre></div>
+→ Type-validated parallel audit, synthesised into a go/no-go decision.</p>
+<hr />
+<h2 id="the-architecture-in-one-picture">The architecture in one picture</h2>
+<pre class="mermaid"><code>flowchart TB
+    Claude["Claude Code"] -- "MCP · refs" --&gt; Server["swarm-mcp"]
+    Server --&gt; Docker["Docker Engine"]
+    Docker --&gt; A0["agent-0"] &amp; A1["agent-1"] &amp; AN["agent-N"]
+    A0 &amp; A1 &amp; AN --&gt; Disk["/tmp/swarm-mcp/…&lt;br/&gt;result.json · stream.jsonl · artifacts.jsonl"]
+    Disk -- "unwrap()" --&gt; Text["text / JSON / files"]</code></pre>
+<p>Combinators return refs. Refs compose. <code>unwrap()</code> materialises text only when you need it.</p>
+<hr />
+<h2 id="how-it-fits-into-the-ecosystem">How it fits into the ecosystem</h2>
+<p>The Claude Code extension landscape is crowded with single-agent coding assistants — Cline, Aider, OpenHands, Continue. They improve the loop of <em>one</em> agent editing <em>one</em> codebase. swarm-mcp is a different layer entirely: it orchestrates <em>many</em> agents working in parallel, with typed contracts between them.</p>
+<p><strong>vs coding assistants (Cline, Aider, Continue):</strong> Those tools automate the edit-run-fix loop for a single agent. swarm-mcp sits above that — you can use swarm-mcp to run 10 specialised agents simultaneously, then synthesise their results.</p>
+<p><strong>vs OpenHands:</strong> OpenHands runs one autonomous agent in a Docker sandbox targeting SWE-bench tasks. swarm-mcp gives you <em>N</em> containers, functional combinators to compose their work, a type system to validate outputs, and a pipeline interpreter to chain them with error recovery.</p>
+<p><strong>vs OpenClaw (191k ⭐):</strong> A personal AI assistant with 50+ messaging platform adapters (WhatsApp, Telegram, Discord). A different product category entirely — no Docker isolation per agent, no type contracts, not designed for developer workloads. The star count reflects breadth of use, not overlap with swarm-mcp's niche.</p>
+<p>swarm-mcp's niche: <strong>programmable multi-agent orchestration from within Claude Code</strong>, with production-grade isolation, composability, and type safety.</p>
+<hr />
+<h2 id="get-started">Get started</h2>
 <ul>
-<li><strong>Parallel execution</strong> — <code>par()</code> fans out to N agents simultaneously; <code>map()</code> applies a prompt to a list of inputs in parallel.</li>
-<li><strong>Composable combinators</strong> — <code>chain()</code>, <code>reduce()</code>, <code>map_reduce()</code>, <code>filter()</code>, <code>race()</code>, <code>retry()</code>, and <code>guard()</code> let you build arbitrarily complex workflows from simple building blocks.</li>
-<li><strong>Declarative pipelines</strong> — YAML/JSON pipeline definitions are interpreted by a free monad evaluator, so pipelines are data that can be stored, versioned, and composed.</li>
-<li><strong>Structured type system</strong> — Markdown files with <code>[name]</code> references define input and output schemas, resolved recursively, so agents communicate through validated structured data.</li>
-<li><strong>Security by default</strong> — Each agent runs in a fresh, isolated Docker container. OAuth credentials are injected at runtime and never baked into images.</li>
-<li><strong>Resource pools</strong> — Named resource slots (<code>SWARM_RESOURCE_&lt;name&gt;</code>) let you cap concurrency on GPUs, API keys, or any scarce resource, with automatic queuing.</li>
-<li><strong>Full observability</strong> — Every agent emits <code>result.json</code>, <code>stream.jsonl</code>, <code>artifacts.jsonl</code>, <code>output.md</code>, and <code>prompt.txt</code>, giving you a complete audit trail.</li>
-</ul>
-<h2 id="get-started">Get Started</h2>
-<ul>
-<li><a href="installation/">Installation</a> — install swarm-mcp, build the Docker image, and wire it into Claude Code.</li>
-<li><a href="quickstart/">Quickstart</a> — run your first agent and pipeline in ten minutes.</li>
+<li><a href="installation/">Installation</a> — install swarm-mcp, build the Docker image, wire into Claude Code</li>
+<li><a href="quickstart/">Quickstart</a> — your first agent, pipeline, and type-validated workflow in 10 minutes</li>
+<li><a href="concepts/refs/">Concepts: Refs</a> — the monadic architecture in depth</li>
+<li><a href="concepts/combinators/">Concepts: Combinators</a> — all 21 tools with examples</li>
+<li><a href="concepts/types/">Concepts: Types</a> — semantic validation with natural language types</li>
+<li><a href="concepts/mcps/">Concepts: MCP Access</a> — giving agents access to your knowledge base and tools</li>
 </ul>
 
 
