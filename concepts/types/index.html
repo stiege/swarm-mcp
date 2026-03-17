@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#type-system" class="md-skip">
+        <a href="#natural-language-types" class="md-skip">
           Skip to content
         </a>
       
@@ -707,10 +707,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#type-definitions-as-markdown-files" class="md-nav__link">
+  <a href="#what-a-type-is" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Type Definitions as Markdown Files
+        What a Type Is
       
     </span>
   </a>
@@ -718,10 +718,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#recursive-type-name-references" class="md-nav__link">
+  <a href="#where-types-live" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Recursive [type-name] References
+        Where Types Live
       
     </span>
   </a>
@@ -729,22 +729,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#type-registry-search-paths" class="md-nav__link">
+  <a href="#why-types-matter" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Type Registry Search Paths
+        Why Types Matter
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Type Registry Search Paths">
+    <nav class="md-nav" aria-label="Why Types Matter">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#wrap_project" class="md-nav__link">
+  <a href="#types-guide-agent-behaviour" class="md-nav__link">
     <span class="md-ellipsis">
       
-        wrap_project()
+        Types guide agent behaviour
       
     </span>
   </a>
@@ -752,10 +752,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#get_type_definitionname-resolve_refs" class="md-nav__link">
+  <a href="#types-enforce-semantic-correctness" class="md-nav__link">
     <span class="md-ellipsis">
       
-        get_type_definition(name, resolve_refs?)
+        Types enforce semantic correctness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#types-compose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Types compose
       
     </span>
   </a>
@@ -768,22 +779,66 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#validating-with-validate" class="md-nav__link">
+  <a href="#how-types-are-injected-into-prompts" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Validating with validate()
+        How Types Are Injected into Prompts
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Validating with validate()">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#type-composition-with-ref-syntax" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Type Composition with [ref] Syntax
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-type-enforcement-triad" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Type Enforcement Triad
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Type Enforcement Triad">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#example" class="md-nav__link">
+  <a href="#validate-check-a-single-artifact" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example
+        validate() — check a single artifact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter-keep-only-valid-items-from-a-batch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        filter() — keep only valid items from a batch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retry-loop-until-output-validates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        retry() — loop until output validates
       
     </span>
   </a>
@@ -796,44 +851,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#filtering-with-filter" class="md-nav__link">
+  <a href="#complete-worked-example" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Filtering with filter()
+        Complete Worked Example
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#using-types-in-sandboxes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Using Types in Sandboxes
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#example-full-type-workflow" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Example: Full Type Workflow
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Example: Full Type Workflow">
+    <nav class="md-nav" aria-label="Complete Worked Example">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#1-define-the-type" class="md-nav__link">
+  <a href="#step-1-define-the-types" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Define the type
+        Step 1 — Define the types
       
     </span>
   </a>
@@ -841,10 +874,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#2-register-the-project" class="md-nav__link">
+  <a href="#step-2-register-the-project" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. Register the project
+        Step 2 — Register the project
       
     </span>
   </a>
@@ -852,10 +885,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#3-run-an-agent-with-output-type-guidance" class="md-nav__link">
+  <a href="#step-3-run-the-research-step" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Run an agent with output type guidance
+        Step 3 — Run the research step
       
     </span>
   </a>
@@ -863,10 +896,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#4-validate-the-result" class="md-nav__link">
+  <a href="#step-4-validate-research-output" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. Validate the result
+        Step 4 — Validate research output
       
     </span>
   </a>
@@ -874,10 +907,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#5-filter-a-batch" class="md-nav__link">
+  <a href="#step-5-run-analysis-with-type-gated-input" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. Filter a batch
+        Step 5 — Run analysis with type-gated input
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-6-filter-a-batch-of-analyses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 6 — Filter a batch of analyses
       
     </span>
   </a>
@@ -886,6 +930,56 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#discovering-and-inspecting-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discovering and Inspecting Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Discovering and Inspecting Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list-all-registered-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        List all registered types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inspect-a-type-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspect a type definition
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#writing-good-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Writing Good Types
+      
+    </span>
+  </a>
   
 </li>
       
@@ -935,6 +1029,34 @@
     
   
     Sandboxes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Access
   
 
     
@@ -1236,10 +1358,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#type-definitions-as-markdown-files" class="md-nav__link">
+  <a href="#what-a-type-is" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Type Definitions as Markdown Files
+        What a Type Is
       
     </span>
   </a>
@@ -1247,10 +1369,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#recursive-type-name-references" class="md-nav__link">
+  <a href="#where-types-live" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Recursive [type-name] References
+        Where Types Live
       
     </span>
   </a>
@@ -1258,22 +1380,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#type-registry-search-paths" class="md-nav__link">
+  <a href="#why-types-matter" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Type Registry Search Paths
+        Why Types Matter
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Type Registry Search Paths">
+    <nav class="md-nav" aria-label="Why Types Matter">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#wrap_project" class="md-nav__link">
+  <a href="#types-guide-agent-behaviour" class="md-nav__link">
     <span class="md-ellipsis">
       
-        wrap_project()
+        Types guide agent behaviour
       
     </span>
   </a>
@@ -1281,10 +1403,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#get_type_definitionname-resolve_refs" class="md-nav__link">
+  <a href="#types-enforce-semantic-correctness" class="md-nav__link">
     <span class="md-ellipsis">
       
-        get_type_definition(name, resolve_refs?)
+        Types enforce semantic correctness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#types-compose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Types compose
       
     </span>
   </a>
@@ -1297,22 +1430,66 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#validating-with-validate" class="md-nav__link">
+  <a href="#how-types-are-injected-into-prompts" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Validating with validate()
+        How Types Are Injected into Prompts
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Validating with validate()">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#type-composition-with-ref-syntax" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Type Composition with [ref] Syntax
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-type-enforcement-triad" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Type Enforcement Triad
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Type Enforcement Triad">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#example" class="md-nav__link">
+  <a href="#validate-check-a-single-artifact" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example
+        validate() — check a single artifact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter-keep-only-valid-items-from-a-batch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        filter() — keep only valid items from a batch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retry-loop-until-output-validates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        retry() — loop until output validates
       
     </span>
   </a>
@@ -1325,44 +1502,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#filtering-with-filter" class="md-nav__link">
+  <a href="#complete-worked-example" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Filtering with filter()
+        Complete Worked Example
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#using-types-in-sandboxes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Using Types in Sandboxes
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#example-full-type-workflow" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Example: Full Type Workflow
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Example: Full Type Workflow">
+    <nav class="md-nav" aria-label="Complete Worked Example">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#1-define-the-type" class="md-nav__link">
+  <a href="#step-1-define-the-types" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Define the type
+        Step 1 — Define the types
       
     </span>
   </a>
@@ -1370,10 +1525,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#2-register-the-project" class="md-nav__link">
+  <a href="#step-2-register-the-project" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. Register the project
+        Step 2 — Register the project
       
     </span>
   </a>
@@ -1381,10 +1536,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#3-run-an-agent-with-output-type-guidance" class="md-nav__link">
+  <a href="#step-3-run-the-research-step" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Run an agent with output type guidance
+        Step 3 — Run the research step
       
     </span>
   </a>
@@ -1392,10 +1547,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#4-validate-the-result" class="md-nav__link">
+  <a href="#step-4-validate-research-output" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. Validate the result
+        Step 4 — Validate research output
       
     </span>
   </a>
@@ -1403,10 +1558,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#5-filter-a-batch" class="md-nav__link">
+  <a href="#step-5-run-analysis-with-type-gated-input" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. Filter a batch
+        Step 5 — Run analysis with type-gated input
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-6-filter-a-batch-of-analyses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 6 — Filter a batch of analyses
       
     </span>
   </a>
@@ -1415,6 +1581,56 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#discovering-and-inspecting-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Discovering and Inspecting Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Discovering and Inspecting Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list-all-registered-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        List all registered types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inspect-a-type-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspect a type definition
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#writing-good-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Writing Good Types
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1460,194 +1676,383 @@
   
 
 
-<h1 id="type-system">Type System</h1>
-<p>The swarm-mcp type system lets you define <strong>structured expectations</strong> for agent inputs and outputs using plain markdown files. Types are resolved, composed, and enforced at runtime by a dedicated checker agent — no schemas, no code generation, no compilation step.</p>
+<h1 id="natural-language-types">Natural Language Types</h1>
+<p>The swarm-mcp type system lets you define <strong>semantic contracts</strong> for agent inputs and outputs using plain Markdown files. Unlike JSON Schema or Pydantic, types are written in prose — for an LLM to read and understand — and enforced by a dedicated validator agent that reasons about meaning, not just structure.</p>
+<p>This is the most powerful underused feature in swarm-mcp. It lets you validate things that are impossible with any schema language:</p>
+<ul>
+<li>"The analysis must identify at least 3 risk factors"</li>
+<li>"The code must not contain any hardcoded credentials"</li>
+<li>"The summary must be under 100 words and cite at least one source"</li>
+</ul>
 <hr />
-<h2 id="type-definitions-as-markdown-files">Type Definitions as Markdown Files</h2>
-<p>A type is a <code>.md</code> file that describes what a value should contain. The format is deliberately free-form: write whatever natural language a Claude agent needs to understand the structure.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gh"># AnalysisReport</span>
+<h2 id="what-a-type-is">What a Type Is</h2>
+<p>A type is a <strong>Markdown file</strong> that describes what something <em>is</em>, what it <em>contains</em>, and how to <em>verify</em> it. The format is deliberately free-form — you write whatever a Claude agent needs to understand the expected structure and quality bar.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gh"># research-notes</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>A structured report produced by the analysis agent.
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Raw research output from an initial investigation phase.
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gu">## Required sections</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gu">## Structure</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">-</span><span class="w"> </span><span class="gs">**summary**</span>: One paragraph, ≤150 words
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">-</span><span class="w"> </span><span class="gs">**findings**</span>: Bulleted list of 3–10 distinct findings
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="k">-</span><span class="w"> </span><span class="gs">**confidence**</span>: One of <span class="sb">`high`</span>, <span class="sb">`medium`</span>, or <span class="sb">`low`</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="k">-</span><span class="w"> </span><span class="gs">**sources**</span>: List of URLs or file paths consulted
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">-</span><span class="w"> </span><span class="gs">**topic**</span>: The subject being researched (one line)
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">-</span><span class="w"> </span><span class="gs">**key_findings**</span>: Bulleted list of 3–10 distinct findings, each with a source
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="k">-</span><span class="w"> </span><span class="gs">**open_questions**</span>: Things that need further investigation
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="k">-</span><span class="w"> </span><span class="gs">**sources**</span>: All URLs, file paths, or document references consulted
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="gu">## Optional sections</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="gu">## Validity Criteria</span>
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="k">-</span><span class="w"> </span><span class="gs">**caveats**</span>: Known limitations or data gaps
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="k">-</span><span class="w"> </span><span class="gs">**next_steps**</span>: Recommended follow-up actions
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="k">-</span><span class="w"> </span>Must contain at least 3 key findings
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="k">-</span><span class="w"> </span>Every finding must cite at least one source
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="k">-</span><span class="w"> </span>Sources section must not be empty
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="k">-</span><span class="w"> </span>open_questions may be empty only if the topic is fully resolved
 </code></pre></div>
-<p>Save this file as <code>types/AnalysisReport.md</code> in your project (or <code>~/.claude/types/</code>). That's all — no registration step is needed if you use <code>wrap_project()</code>.</p>
+<p>Save this as <code>types/research-notes.md</code> in your project. The <strong>filename stem</strong> (<code>research-notes</code>) is the type name. No registration step is needed beyond calling <code>wrap_project()</code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Naming convention</p>
+<p>Use lowercase hyphenated names — <code>research-notes</code>, <code>code-review</code>, <code>analysis-report</code>. This matches how <code>[refs]</code> look in prose and avoids case-sensitivity surprises across file systems.</p>
+</div>
 <hr />
-<h2 id="recursive-type-name-references">Recursive <code>[type-name]</code> References</h2>
-<p>Type definitions can embed other types using the <code>[TypeName]</code> syntax. The resolver expands references recursively up to a depth of 3 (<code>MAX_RESOLVE_DEPTH</code>).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="gh"># ReviewPackage</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>A bundle passed to the review pipeline.
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="gu">## Fields</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="k">-</span><span class="w"> </span><span class="gs">**report**</span>: [AnalysisReport]
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="k">-</span><span class="w"> </span><span class="gs">**metadata**</span>: [RunMetadata]
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="k">-</span><span class="w"> </span><span class="gs">**reviewer_notes**</span>: Free text
-</code></pre></div>
-<p>When the type system resolves <code>ReviewPackage</code>, it inlines the full definitions of <code>AnalysisReport</code> and <code>RunMetadata</code> so the checker agent has all the context it needs in one prompt. Circular references are detected and stopped at the depth limit.</p>
-<hr />
-<h2 id="type-registry-search-paths">Type Registry Search Paths</h2>
-<p>Types are looked up in order:</p>
-<ol>
-<li>Project directory — <code>&lt;project&gt;/types/</code></li>
-<li>User global directory — <code>~/.claude/types/</code></li>
-</ol>
-<p>Project types shadow global types with the same name. You can inspect what is registered with:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>list_type_registry()
-</code></pre></div>
-<p>This lists every type visible to the current session, showing which search path each came from.</p>
-<h3 id="wrap_project"><code>wrap_project()</code></h3>
-<p>To register a project's <code>types/</code> directory in the current session:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>wrap_project(path=&quot;/path/to/my-project&quot;)
-</code></pre></div>
-<p>This adds the project's <code>types/</code> directory to the front of the search path. Types defined there take precedence over global types for the rest of the session.</p>
-<h3 id="get_type_definitionname-resolve_refs"><code>get_type_definition(name, resolve_refs?)</code></h3>
-<p>Retrieve the raw markdown for a type:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>get_type_definition(name=&quot;AnalysisReport&quot;)
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>get_type_definition(name=&quot;ReviewPackage&quot;, resolve_refs=true)
-</code></pre></div>
-<p>With <code>resolve_refs=true</code> the response contains the fully expanded definition with all <code>[TypeName]</code> references inlined — useful for debugging what the checker agent will actually see.</p>
-<hr />
-<h2 id="validating-with-validate">Validating with <code>validate()</code></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>validate(ref, type_name) → {status, feedback}
-</code></pre></div>
-<p><code>validate()</code> runs a <strong>type-checker agent</strong> that reads both the type definition and the actual value, then returns one of three verdicts:</p>
+<h2 id="where-types-live">Where Types Live</h2>
+<p>Types are discovered in this priority order:</p>
 <table>
 <thead>
 <tr>
-<th>Status</th>
+<th>Priority</th>
+<th>Location</th>
+<th>How to register</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>&lt;project&gt;/types/</code></td>
+<td><code>wrap_project(project_dir="/path/to/project")</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>$SWARM_PROJECT_DIR/types/</code></td>
+<td>Set the environment variable</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>~/.claude/types/</code></td>
+<td>Place files there directly (global fallback)</td>
+</tr>
+</tbody>
+</table>
+<p>Project types shadow global types with the same name. A project's local <code>code-review.md</code> overrides any <code>~/.claude/types/code-review.md</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>wrap_project(project_dir=&quot;/workspace/my-project&quot;)
+</code></pre></div>
+<p>This registers the project's <code>types/</code>, <code>sandboxes/</code>, and <code>pipelines/</code> directories in one call.</p>
+<hr />
+<h2 id="why-types-matter">Why Types Matter</h2>
+<h3 id="types-guide-agent-behaviour">Types guide agent behaviour</h3>
+<p>When you set <code>input_type</code> or <code>output_type</code> on a sandbox, the type definition is automatically injected into the agent's prompt. The agent always knows what it's supposed to produce — with full context — without you having to repeat it in every prompt.</p>
+<h3 id="types-enforce-semantic-correctness">Types enforce semantic correctness</h3>
+<p>The validator agent <em>reads</em> your type definition and <em>reasons</em> about the output. It can catch things no schema validator ever could:</p>
+<ul>
+<li>A report that lists findings but forgets to rate their confidence</li>
+<li>A code review that mentions issues but omits line numbers</li>
+<li>A summary that's technically valid JSON but misses the point entirely</li>
+</ul>
+<h3 id="types-compose">Types compose</h3>
+<p>Use <code>[ref]</code> syntax to build complex types from simpler ones. An <code>analysis-report</code> can reference <code>[research-notes]</code> and <code>[severity-rating]</code>, each defined in their own focused file.</p>
+<hr />
+<h2 id="how-types-are-injected-into-prompts">How Types Are Injected into Prompts</h2>
+<p>When a sandbox has <code>input_type</code> or <code>output_type</code> set, the runner calls <code>build_type_context()</code> before executing the agent. This prepends a structured section to the agent's task prompt:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a># Input Type
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>Your input is: &lt;resolved type definition&gt;
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a># Output Type
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>You must produce: &lt;resolved type definition&gt;
+</code></pre></div>
+<p>All <code>[ref]</code> syntax in the type is resolved (refs inlined recursively) before injection, so the agent sees the complete, self-contained definition — no dangling references.</p>
+<p><strong>Example — setting types on a sandbox spec:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sonnet&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;Read&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Write&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Glob&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Grep&quot;</span><span class="p">],</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">&quot;input_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;[research-notes]&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">&quot;output_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;[analysis-report]&quot;</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="p">}</span>
+</code></pre></div>
+<p>The <code>[research-notes]</code> and <code>[analysis-report]</code> brackets tell the runner to look up those type files and inline their content. You can also use plain prose instead of a ref:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;output_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;A JSON object with a &#39;verdict&#39; field (approve/reject) and a &#39;reason&#39; field (one sentence).&quot;</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="p">}</span>
+</code></pre></div>
+<div class="admonition tip">
+<p class="admonition-title">Inline vs. ref</p>
+<p>Use <code>[type-name]</code> refs when you want a reusable, versioned definition that can be validated with <code>validate()</code>. Use plain prose when the type is one-off or trivial enough not to need a separate file.</p>
+</div>
+<hr />
+<h2 id="type-composition-with-ref-syntax">Type Composition with <code>[ref]</code> Syntax</h2>
+<p>Type files can reference other types using <code>[type-name]</code> in brackets. The resolver inlines the referenced type's full content recursively, up to <code>MAX_RESOLVE_DEPTH = 3</code> levels deep.</p>
+<p><strong>Example — <code>security-audit.md</code> referencing two sub-types:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="gh"># security-audit</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>A comprehensive security audit of a codebase or system.
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="gu">## Sections</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="k">-</span><span class="w"> </span><span class="gs">**scope**</span>: What was audited (files, services, APIs)
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="k">-</span><span class="w"> </span><span class="gs">**vulnerabilities**</span>: List of [vulnerability] items found
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="k">-</span><span class="w"> </span><span class="gs">**severity_summary**</span>: A [severity-rating] for the overall audit
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="k">-</span><span class="w"> </span><span class="gs">**recommendations**</span>: Ordered list of mitigations, highest severity first
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="gu">## Validity Criteria</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="k">-</span><span class="w"> </span>Must contain at least one vulnerability entry (even if &quot;none found&quot;)
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="k">-</span><span class="w"> </span>severity_summary must match the highest individual vulnerability severity
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="k">-</span><span class="w"> </span>Every critical vulnerability must have a concrete mitigation in recommendations
+</code></pre></div>
+<p>When <code>resolve_type("security-audit")</code> runs, it fetches <code>vulnerability.md</code> and <code>severity-rating.md</code> and inlines them:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>**vulnerability**: &lt;full content of vulnerability.md&gt;
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>**severity-rating**: &lt;full content of severity-rating.md&gt;
+</code></pre></div>
+<p>If the same type appears a second time anywhere in the resolved tree, subsequent occurrences are replaced with <code>**type-name** (see above)</code> to avoid repetition.</p>
+<div class="admonition warning">
+<p class="admonition-title">Depth limit</p>
+<p>References are resolved up to 3 levels deep (<code>MAX_RESOLVE_DEPTH = 3</code>). Deeper references are left as-is. Unknown <code>[references]</code> that don't match any registered type file are also left unchanged — the LLM can still interpret them as intent.</p>
+</div>
+<hr />
+<h2 id="the-type-enforcement-triad">The Type Enforcement Triad</h2>
+<h3 id="validate-check-a-single-artifact"><code>validate()</code> — check a single artifact</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>validate(artifact, declared_type) → {verdict, result}
+</code></pre></div>
+<p>Spawns a validator agent that reads the type definition and the artifact, then checks every criterion in the type's <code>## Validity Criteria</code> section. The verdict is one of:</p>
+<table>
+<thead>
+<tr>
+<th>Verdict</th>
 <th>Meaning</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>VALID</code></td>
-<td>The value satisfies all requirements in the type definition</td>
+<td>All criteria passed</td>
 </tr>
 <tr>
 <td><code>PARTIAL</code></td>
-<td>The value meets some but not all requirements; <code>feedback</code> explains what is missing</td>
+<td>Some criteria passed; issues listed</td>
 </tr>
 <tr>
 <td><code>INVALID</code></td>
-<td>The value does not satisfy the type; <code>feedback</code> explains why</td>
+<td>Critical criteria failed</td>
 </tr>
 </tbody>
 </table>
-<h3 id="example">Example</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">validate</span><span class="p">(</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">ref</span><span class="o">=</span><span class="s2">&quot;The analysis found three anomalies: ...&quot;</span><span class="p">,</span>   <span class="c1"># the value to check</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">type_name</span><span class="o">=</span><span class="s2">&quot;AnalysisReport&quot;</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="p">)</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1"># → {&quot;status&quot;: &quot;PARTIAL&quot;, &quot;feedback&quot;: &quot;Missing &#39;confidence&#39; field&quot;}</span>
+<p>The validator always responds in this exact format:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="gu">## Checks</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="k">-</span><span class="w"> </span>[<span class="nl">required fields present</span>]: <span class="na">PASS — all four required sections found</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="k">-</span><span class="w"> </span>[<span class="nl">minimum findings count</span>]: <span class="na">PASS — 5 findings identified</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="k">-</span><span class="w"> </span>[<span class="nl">sources cited</span>]: <span class="na">FAIL — finding #3 has no source</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="k">-</span><span class="w"> </span>[<span class="nl">confidence rated</span>]: <span class="na">PASS — rated &quot;medium&quot;</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="gu">## Verdict</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>PARTIAL
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="gu">## Issues</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="k">-</span><span class="w"> </span>Finding <span class="ni">#3</span> (&quot;Cache invalidation race&quot;) is missing a source citation.
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>  Add a URL or document reference.
 </code></pre></div>
-<p>The checker agent uses <code>build_validation_prompt()</code> internally, which constructs a prompt containing:</p>
-<ul>
-<li>The expanded type definition (with all refs resolved)</li>
-<li>A list of explicit criteria derived from the type</li>
-<li>The value to evaluate</li>
-</ul>
-<p>This means complex, nested types with prose descriptions are validated as reliably as strict JSON schemas — because Claude is the validator.</p>
-<hr />
-<h2 id="filtering-with-filter">Filtering with <code>filter()</code></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>filter(refs, type_name) → list
+<p><strong>Example:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>validate(
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>  artifact=&#39;{&quot;topic&quot;: &quot;LLM hallucination&quot;, &quot;key_findings&quot;: [...], &quot;sources&quot;: [...]}&#39;,
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>  declared_type=&quot;research-notes&quot;
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>)
 </code></pre></div>
-<p><code>filter()</code> runs <code>validate()</code> on each item in <code>refs</code> <strong>in parallel</strong> and returns only the items that receive a <code>VALID</code> verdict.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span><span class="n">report_a</span><span class="p">,</span> <span class="n">report_b</span><span class="p">,</span> <span class="n">report_c</span><span class="p">,</span> <span class="n">report_d</span><span class="p">]</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">valid_reports</span> <span class="o">=</span> <span class="nb">filter</span><span class="p">(</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">refs</span><span class="o">=</span><span class="n">candidates</span><span class="p">,</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">type_name</span><span class="o">=</span><span class="s2">&quot;AnalysisReport&quot;</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="p">)</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># → [report_a, report_c]   (report_b and report_d failed validation)</span>
-</code></pre></div>
-<p>This is the primary building block for <strong>type-gated pipelines</strong>: fan out work with <a href="../combinators/">Combinators</a>, collect results, then filter to keep only conforming outputs before passing them downstream.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">&quot;steps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">      </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;generate-reports&quot;</span><span class="p">,</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">      </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Generate analysis reports for each dataset in /shared/datasets/&quot;</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">    </span><span class="p">},</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">      </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;filter-valid&quot;</span><span class="p">,</span>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">      </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Use filter() to keep only outputs that conform to the AnalysisReport type&quot;</span>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">    </span><span class="p">},</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">      </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;summarise&quot;</span><span class="p">,</span>
-<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">      </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Summarise the valid reports collected in the previous step&quot;</span>
-<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="p">}</span>
-</code></pre></div>
-<hr />
-<h2 id="using-types-in-sandboxes">Using Types in Sandboxes</h2>
-<p>Sandbox specs accept <code>input_type</code> and <code>output_type</code> fields that attach type expectations to a single agent call:</p>
+<p>Returns:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sonnet&quot;</span><span class="p">,</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;Read&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Write&quot;</span><span class="p">],</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">&quot;input_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;DatasetSpec&quot;</span><span class="p">,</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="nt">&quot;output_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AnalysisReport&quot;</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">&quot;run_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abc123&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">&quot;declared_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;research-notes&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">&quot;verdict&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;VALID&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="nt">&quot;result&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;## Checks\n- [minimum findings]: PASS ...&quot;</span><span class="w"> </span><span class="p">}</span>
 <a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">}</span>
-</code></pre></div>
-<p>When <code>output_type</code> is set, the type context is injected into the agent's prompt via <code>build_type_context()</code>, which adds a dedicated section describing exactly what output structure is expected. This guides the agent without requiring a separate validation step.</p>
-<p>For stricter enforcement, combine <code>output_type</code> with an explicit <code>validate()</code> call in a downstream step.</p>
-<hr />
-<h2 id="example-full-type-workflow">Example: Full Type Workflow</h2>
-<h3 id="1-define-the-type">1. Define the type</h3>
-<p><code>types/CodeReview.md</code>:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="gh"># CodeReview</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>A structured code review produced by a reviewer agent.
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="gu">## Required fields</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="k">-</span><span class="w"> </span><span class="gs">**verdict**</span>: One of <span class="sb">`approve`</span>, <span class="sb">`request-changes`</span>, <span class="sb">`comment`</span>
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="k">-</span><span class="w"> </span><span class="gs">**summary**</span>: One paragraph summarising the overall quality
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="k">-</span><span class="w"> </span><span class="gs">**issues**</span>: List of issues, each with:
-<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span><span class="sb">`severity`</span>: <span class="sb">`critical`</span>, <span class="sb">`major`</span>, or <span class="sb">`minor`</span>
-<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span><span class="sb">`file`</span>: The file path
-<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span><span class="sb">`line`</span>: Line number (integer)
-<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="w">  </span><span class="k">-</span><span class="w"> </span><span class="sb">`description`</span>: What is wrong and why
-<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>
-<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="gu">## Quality bar</span>
-<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>
-<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a><span class="k">-</span><span class="w"> </span>Every <span class="sb">`critical`</span> issue must include a suggested fix
-<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a><span class="k">-</span><span class="w"> </span>The <span class="sb">`summary`</span> must not simply restate the issue list
 </code></pre></div></p>
-<h3 id="2-register-the-project">2. Register the project</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>wrap_project(path=&quot;/workspace/my-project&quot;)
+<div class="admonition note">
+<p class="admonition-title">Model choice</p>
+<p><code>validate()</code> defaults to <code>sonnet</code>. You can override with <code>model="opus"</code> for complex types that require deeper reasoning, or <code>model="haiku"</code> when speed matters more than thoroughness.</p>
+</div>
+<hr />
+<h3 id="filter-keep-only-valid-items-from-a-batch"><code>filter()</code> — keep only valid items from a batch</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>filter(refs, declared_type) → {results: [...valid refs...], rejected: [...invalid refs...]}
 </code></pre></div>
-<h3 id="3-run-an-agent-with-output-type-guidance">3. Run an agent with output type guidance</h3>
+<p>Runs <code>validate()</code> on every ref in the input list <strong>in parallel</strong>, then partitions the results. Only refs that receive a <code>VALID</code> verdict appear in <code>results</code>. This is the primary building block for type-gated pipelines.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>filter(
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>  refs=&#39;[{&quot;ref&quot;: &quot;abc123/agent-0&quot;}, {&quot;ref&quot;: &quot;abc123/agent-1&quot;}, {&quot;ref&quot;: &quot;abc123/agent-2&quot;}]&#39;,
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>  declared_type=&quot;research-notes&quot;
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>)
+</code></pre></div>
+<p>Returns:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="p">{</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sonnet&quot;</span><span class="p">,</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">&quot;system_prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;You are an expert code reviewer.&quot;</span><span class="p">,</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">  </span><span class="nt">&quot;output_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CodeReview&quot;</span><span class="p">,</span>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;Read&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Glob&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Grep&quot;</span><span class="p">]</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="p">}</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">&quot;run_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;def456&quot;</span><span class="p">,</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">&quot;total&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">  </span><span class="nt">&quot;valid&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span><span class="nt">&quot;invalid&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">  </span><span class="nt">&quot;results&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;ref&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abc123/agent-0&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;validated_as&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;research-notes&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;verdict&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;VALID&quot;</span><span class="p">},</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;ref&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abc123/agent-2&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;validated_as&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;research-notes&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;verdict&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;VALID&quot;</span><span class="p">}</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="w">  </span><span class="nt">&quot;rejected&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;ref&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abc123/agent-1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;validated_as&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;research-notes&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;verdict&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;INVALID&quot;</span><span class="p">}</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="p">}</span>
+</code></pre></div></p>
+<div class="admonition tip">
+<p class="admonition-title">Fan-out → filter pattern</p>
+<p>Use <code>par()</code> or a pipeline fan-out to generate N results, then <code>filter()</code> to keep only conforming ones. This is much cheaper than retrying failures — you get the best results from a batch without blocking on the weakest ones.</p>
+</div>
+<hr />
+<h3 id="retry-loop-until-output-validates"><code>retry()</code> — loop until output validates</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>retry(prompt, declared_type, max_attempts) → ref
 </code></pre></div>
-<h3 id="4-validate-the-result">4. Validate the result</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>validate(ref=agent_output, type_name=&quot;CodeReview&quot;)
+<p>Runs a single agent repeatedly until its output validates as the declared type — or until <code>max_attempts</code> is exhausted. Each failed attempt feeds its error and validation feedback back into the next attempt's prompt.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>retry(
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>  prompt=&quot;Research the current state of WebAssembly tooling. Produce research notes.&quot;,
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>  declared_type=&quot;research-notes&quot;,
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>  max_attempts=3
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>)
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="p">{</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;VALID&quot;</span><span class="p">,</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="nt">&quot;feedback&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;All required fields present. Critical issue includes a suggested fix.&quot;</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="p">}</span>
+<p>On a validation failure, the next attempt receives:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a># Prior attempts failed with these errors:
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>## Attempt 1
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>Type validation failed (PARTIAL): ## Checks
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>- [minimum findings count]: FAIL — only 2 findings, need at least 3
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>...
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>Please fix the issues and try again.
 </code></pre></div>
-<h3 id="5-filter-a-batch">5. Filter a batch</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="n">reviews</span> <span class="o">=</span> <span class="n">par</span><span class="p">(</span><span class="n">prompts</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span> <span class="n">sandbox</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;output_type&quot;</span><span class="p">:</span> <span class="s2">&quot;CodeReview&quot;</span><span class="p">,</span> <span class="o">...</span><span class="p">})</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="n">good_reviews</span> <span class="o">=</span> <span class="nb">filter</span><span class="p">(</span><span class="n">refs</span><span class="o">=</span><span class="n">reviews</span><span class="p">,</span> <span class="n">type_name</span><span class="o">=</span><span class="s2">&quot;CodeReview&quot;</span><span class="p">)</span>
+<p>The agent sees exactly what the validator said and can address the specific failures.</p>
+<div class="admonition warning">
+<p class="admonition-title">Cost vs. correctness</p>
+<p><code>retry()</code> runs a validator agent after each production attempt, so a 3-attempt retry can cost up to 6 agent runs. Use it for high-stakes outputs where correctness matters more than cost. For batch work, prefer <code>filter()</code> instead.</p>
+</div>
+<hr />
+<h2 id="complete-worked-example">Complete Worked Example</h2>
+<p>A three-step research-and-analysis pipeline with type enforcement at every boundary.</p>
+<h3 id="step-1-define-the-types">Step 1 — Define the types</h3>
+<p><code>types/research-notes.md</code>:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="gh"># research-notes</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>Raw research output from an initial investigation phase.
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="gu">## Structure</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="k">-</span><span class="w"> </span><span class="gs">**topic**</span>: The research subject (one line)
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="k">-</span><span class="w"> </span><span class="gs">**key_findings**</span>: 3–10 findings, each citing at least one source
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="k">-</span><span class="w"> </span><span class="gs">**open_questions**</span>: Unresolved questions for further investigation
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="k">-</span><span class="w"> </span><span class="gs">**sources**</span>: All references consulted (URLs, file paths, document names)
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a><span class="gu">## Validity Criteria</span>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>
+<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a><span class="k">-</span><span class="w"> </span>Must contain at least 3 key findings
+<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a><span class="k">-</span><span class="w"> </span>Every finding must cite at least one source
+<a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a><span class="k">-</span><span class="w"> </span>sources list must not be empty
+</code></pre></div></p>
+<p><code>types/analysis-report.md</code>:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="gh"># analysis-report</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>A structured analytical report derived from [research-notes].
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="gu">## Structure</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="k">-</span><span class="w"> </span><span class="gs">**executive_summary**</span>: 1–3 paragraph overview suitable for a non-technical reader
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="k">-</span><span class="w"> </span><span class="gs">**findings**</span>: Each finding from the research, interpreted with evidence
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="k">-</span><span class="w"> </span><span class="gs">**risks**</span>: At least 2 identified risks, each with a concrete mitigation
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="k">-</span><span class="w"> </span><span class="gs">**recommendations**</span>: Prioritised action items
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="k">-</span><span class="w"> </span><span class="gs">**confidence**</span>: One of &quot;high&quot;, &quot;medium&quot;, or &quot;low&quot;, with justification
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="gu">## Validity Criteria</span>
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a>
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a><span class="k">-</span><span class="w"> </span>executive_summary must be present and non-empty
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a><span class="k">-</span><span class="w"> </span>risks section must identify at least 2 distinct risks
+<a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a><span class="k">-</span><span class="w"> </span>Each risk must include at least one concrete mitigation
+<a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a><span class="k">-</span><span class="w"> </span>confidence field must be one of: high, medium, low
+<a id="__codelineno-18-19" name="__codelineno-18-19" href="#__codelineno-18-19"></a><span class="k">-</span><span class="w"> </span>recommendations must contain at least one item
+</code></pre></div></p>
+<h3 id="step-2-register-the-project">Step 2 — Register the project</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>wrap_project(project_dir=&quot;/workspace/my-project&quot;)
 </code></pre></div>
+<h3 id="step-3-run-the-research-step">Step 3 — Run the research step</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="p">{</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sonnet&quot;</span><span class="p">,</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">  </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;Read&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Glob&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Grep&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Bash&quot;</span><span class="p">],</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">  </span><span class="nt">&quot;output_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;[research-notes]&quot;</span><span class="p">,</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">  </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Research the security implications of using LLMs to generate Kubernetes configurations. Produce research notes.&quot;</span>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="p">}</span>
+</code></pre></div>
+<p>Because <code>output_type</code> is set, the agent's prompt is automatically prepended with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a># Output Type
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>You must produce: research-notes
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>Raw research output from an initial investigation phase.
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>...
+</code></pre></div>
+<h3 id="step-4-validate-research-output">Step 4 — Validate research output</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>validate(artifact=&#39;{&quot;ref&quot;: &quot;run-abc/agent-0&quot;}&#39;, declared_type=&quot;research-notes&quot;)
+</code></pre></div>
+<p>If <code>PARTIAL</code> or <code>INVALID</code>, use <code>retry()</code> instead of bare <code>run()</code> to get a corrected output.</p>
+<h3 id="step-5-run-analysis-with-type-gated-input">Step 5 — Run analysis with type-gated input</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="p">{</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">  </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sonnet&quot;</span><span class="p">,</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="w">  </span><span class="nt">&quot;input_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;[research-notes]&quot;</span><span class="p">,</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="w">  </span><span class="nt">&quot;output_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;[analysis-report]&quot;</span><span class="p">,</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="w">  </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Analyse the research notes and produce a structured analysis report.&quot;</span>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="step-6-filter-a-batch-of-analyses">Step 6 — Filter a batch of analyses</h3>
+<p>If you ran analysis on multiple research inputs in parallel:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>filter(
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>  refs=&#39;[{&quot;ref&quot;: &quot;run-xyz/agent-0&quot;}, {&quot;ref&quot;: &quot;run-xyz/agent-1&quot;}, {&quot;ref&quot;: &quot;run-xyz/agent-2&quot;}]&#39;,
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>  declared_type=&quot;analysis-report&quot;
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>)
+</code></pre></div>
+<p>Only the analyses that meet all validity criteria flow into the next step.</p>
+<hr />
+<h2 id="discovering-and-inspecting-types">Discovering and Inspecting Types</h2>
+<h3 id="list-all-registered-types">List all registered types</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>list_type_registry()
+</code></pre></div>
+<p>Returns every type visible to the current session:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="p">[</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">  </span><span class="p">{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;research-notes&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;summary&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Raw research output from an initial investigation phase.&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/workspace/my-project/types&quot;</span><span class="p">},</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">  </span><span class="p">{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;analysis-report&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;summary&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;A structured analytical report derived from research notes.&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/workspace/my-project/types&quot;</span><span class="p">},</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="w">  </span><span class="p">{</span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;code-review&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;summary&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Structured code review output from a reviewer agent.&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/home/user/.claude/types&quot;</span><span class="p">}</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="p">]</span>
+</code></pre></div>
+<p>The <code>summary</code> field is the <strong>first line</strong> of the type file — keep it concise and descriptive.</p>
+<h3 id="inspect-a-type-definition">Inspect a type definition</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>get_type_definition(name=&quot;analysis-report&quot;)
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>get_type_definition(name=&quot;analysis-report&quot;, resolve_refs=true)
+</code></pre></div>
+<p>With <code>resolve_refs=true</code> (the default), all <code>[references]</code> are inlined — this is exactly what the validator agent and <code>build_type_context()</code> see. Use it to debug unexpected validation behaviour.</p>
+<hr />
+<h2 id="writing-good-types">Writing Good Types</h2>
+<p><strong>Be specific about structure and content.</strong> Don't just say "a report" — say what sections it has, how long each should be, and what makes each section valid.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="gu">## Validity Criteria</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="k">-</span><span class="w"> </span>executive_summary must be 1–3 paragraphs (not a single sentence, not a page)
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="k">-</span><span class="w"> </span>risks section must identify at least 2 concrete mitigations, not vague advice
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="k">-</span><span class="w"> </span>confidence must be exactly one of: high, medium, low — no free text
+</code></pre></div>
+<p><strong>Include both what to include AND what makes it invalid.</strong> Validators catch failures better when the type explicitly states disqualifying conditions.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="gu">## Invalid if</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="k">-</span><span class="w"> </span>Any required field is null or missing
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="k">-</span><span class="w"> </span>The summary simply restates the issue list verbatim
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="k">-</span><span class="w"> </span>Recommendations are generic (e.g. &quot;follow best practices&quot;) with no specifics
+</code></pre></div>
+<p><strong>Keep types focused — one concept per type.</strong> Compose with <code>[refs]</code> rather than cramming everything into one file. A <code>security-audit</code> that references <code>[vulnerability]</code> and <code>[severity-rating]</code> is easier to maintain than a monolithic file.</p>
+<p><strong>Always add a <code>## Validity Criteria</code> section</strong> with a bullet list. The validator agent uses this as its checklist. Without it, validation is vague and unreliable.</p>
+<div class="admonition tip">
+<p class="admonition-title">First line matters</p>
+<p>The first line of your type file becomes the <code>summary</code> in <code>list_type_registry()</code> output and appears in agent context. Make it a single, descriptive sentence that captures the essence of the type.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Types are for LLMs, not parsers</p>
+<p>There is no formal parser. You can use any Markdown structure that reads clearly to a Claude agent. Headers, bullets, tables, code blocks — all are fine. The validator reads the whole definition and reasons about it semantically.</p>
+</div>
 <hr />
 <h2 id="tool-reference">Tool Reference</h2>
 <table>
@@ -1661,28 +2066,33 @@
 <tbody>
 <tr>
 <td><code>validate</code></td>
-<td><code>(ref, type_name)</code></td>
-<td>Run checker agent on a single value</td>
+<td><code>(artifact, declared_type, model?, sandbox?)</code></td>
+<td>Run a validator agent on a single artifact</td>
 </tr>
 <tr>
 <td><code>filter</code></td>
-<td><code>(refs, type_name)</code></td>
-<td>Parallel validate, return only VALID items</td>
+<td><code>(refs, declared_type, model?)</code></td>
+<td>Parallel validate; return only VALID refs</td>
+</tr>
+<tr>
+<td><code>retry</code></td>
+<td><code>(prompt, declared_type, max_attempts?)</code></td>
+<td>Re-run until output validates or attempts exhausted</td>
 </tr>
 <tr>
 <td><code>get_type_definition</code></td>
 <td><code>(name, resolve_refs?)</code></td>
-<td>Retrieve type markdown, optionally expanded</td>
+<td>Get type Markdown, optionally with refs inlined</td>
 </tr>
 <tr>
 <td><code>list_type_registry</code></td>
 <td><code>()</code></td>
-<td>List all registered types and their paths</td>
+<td>List all registered types with summaries and sources</td>
 </tr>
 <tr>
 <td><code>wrap_project</code></td>
-<td><code>(path)</code></td>
-<td>Add project <code>types/</code> to registry search path</td>
+<td><code>(project_dir)</code></td>
+<td>Register a project's <code>types/</code> directory</td>
 </tr>
 </tbody>
 </table>
@@ -1692,6 +2102,7 @@
 <li><a href="../pipelines/">Pipelines</a> — use <code>filter()</code> between pipeline steps</li>
 <li><a href="../sandboxes/">Sandboxes</a> — <code>input_type</code> and <code>output_type</code> sandbox fields</li>
 <li><a href="../combinators/">Combinators</a> — fan-out patterns that produce batches for <code>filter()</code></li>
+<li><a href="../refs/">Refs</a> — how artifact references work across pipeline steps</li>
 </ul>
 
 
