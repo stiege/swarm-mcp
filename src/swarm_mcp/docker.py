@@ -98,6 +98,7 @@ def get_docker_run_cmd(
         "--model", spec.model,
         "--allowedTools", ",".join(allowed_tools),
         "--output-format", "stream-json",
+        "--verbose",
         "--no-session-persistence",
     ])
 
