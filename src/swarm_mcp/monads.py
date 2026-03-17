@@ -5,7 +5,7 @@ just a flat dict with optional fields that combinators and the pipeline
 interpreter can check.
 
 The monad stack:
-  Classified (Costed (Timed (Provenanced (Validated (Ref a)))))
+  Encrypted (Classified (Costed (Timed (Provenanced (Validated (Ref a))))))
 
 In practice: a ref dict with optional fields for each layer.
 """
@@ -13,7 +13,10 @@ In practice: a ref dict with optional fields for each layer.
 import hashlib
 import json
 import logging
+import os
 import time
+
+from cryptography.fernet import Fernet
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +149,75 @@ def check_classification(ref: dict, mcps_requested: list[str]) -> tuple[bool, st
     return True, "ok"
 
 
+# ── Encrypted ────────────────────────────────────────────────────
+
+KEYS_DIR = os.path.join("/tmp/swarm-mcp", ".keys")
+
+
+def _generate_key() -> tuple[str, bytes]:
+    """Generate a Fernet key and return (key_id, key_bytes)."""
+    key = Fernet.generate_key()
+    key_id = hashlib.sha256(key).hexdigest()[:12]
+    return key_id, key
+
+
+def _store_key(key_id: str, key: bytes) -> None:
+    """Persist a key to the keys directory."""
+    os.makedirs(KEYS_DIR, exist_ok=True)
+    path = os.path.join(KEYS_DIR, key_id)
+    with open(path, "wb") as f:
+        f.write(key)
+    os.chmod(path, 0o600)
+
+
+def _load_key(key_id: str) -> bytes | None:
+    """Load a key by ID. Returns None if not found."""
+    path = os.path.join(KEYS_DIR, key_id)
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        return f.read()
+
+
+def encrypt_text(text: str, key: bytes) -> bytes:
+    """Encrypt text with a Fernet key."""
+    return Fernet(key).encrypt(text.encode())
+
+
+def decrypt_text(token: bytes, key: bytes) -> str:
+    """Decrypt a Fernet token back to text."""
+    return Fernet(key).decrypt(token).decode()
+
+
+def stamp_encrypted(ref: dict, key_id: str) -> dict:
+    """Mark a ref as encrypted. The key_id is needed to decrypt."""
+    ref["encrypted"] = {
+        "key_id": key_id,
+        "algorithm": "fernet",
+    }
+    return ref
+
+
+def is_encrypted(ref: dict) -> bool:
+    """Check if a ref is encrypted."""
+    return "encrypted" in ref
+
+
+def check_encrypted(ref: dict, key_id: str | None = None) -> tuple[bool, str]:
+    """Check if the caller has the right key for an encrypted ref.
+
+    Returns (can_access, reason).
+    """
+    enc = ref.get("encrypted")
+    if not enc:
+        return True, "not encrypted"
+    if key_id is None:
+        return False, f"ref is encrypted (key_id: {enc['key_id']}), no key provided"
+    if enc["key_id"] != key_id:
+        return False, f"wrong key_id: expected {enc['key_id']}, got {key_id}"
+    return True, "ok"
+
+
 # ── Ref Enrichment ────────────────────────────────────────────────
 
 def enrich_ref(
@@ -159,8 +231,13 @@ def enrich_ref(
     classification: str | None = None,
     attempt: int | None = None,
     max_retries: int | None = None,
+    encrypt: bool = False,
 ) -> dict:
-    """Apply all relevant monadic stamps to a ref in one call."""
+    """Apply all relevant monadic stamps to a ref in one call.
+
+    If encrypt=True, generates a key, encrypts the text on disk, and stamps
+    the ref. The key_id is returned in ref["encrypted"]["key_id"].
+    """
     stamp_provenance(ref, parent_refs, text)
     stamp_cost(ref, budget_limit, spent_so_far)
 
@@ -170,5 +247,21 @@ def enrich_ref(
         stamp_classification(ref, classification)
     if attempt is not None:
         stamp_retry(ref, attempt, max_retries or 3)
+    if encrypt:
+        key_id, key = _generate_key()
+        _store_key(key_id, key)
+        # Encrypt the text on disk
+        ref_str = ref.get("ref", "")
+        result_file = os.path.join("/tmp/swarm-mcp", ref_str, "result.json")
+        if os.path.exists(result_file):
+            with open(result_file) as f:
+                result_data = json.load(f)
+            if result_data.get("text"):
+                ciphertext = encrypt_text(result_data["text"], key)
+                result_data["text"] = ciphertext.decode()  # Fernet tokens are base64-safe
+                result_data["encrypted"] = True
+                with open(result_file, "w") as f:
+                    json.dump(result_data, f, indent=2, default=str)
+        stamp_encrypted(ref, key_id)
 
     return ref

@@ -580,6 +580,18 @@ def unwrap(ref: str) -> str:
             ref_data = json.loads(ref)
             ref = ref_data.get("ref", ref)
 
+        # Check if encrypted — block unwrap, require decrypt tool instead
+        result_file = os.path.join("/tmp/swarm-mcp", ref, "result.json")
+        if os.path.exists(result_file):
+            with open(result_file) as f:
+                result_data = json.load(f)
+            if result_data.get("encrypted"):
+                key_id = (result_data.get("encryption") or {}).get("key_id", "unknown")
+                return json.dumps(response_tools.error_response(
+                    "encrypted",
+                    f"Ref is encrypted (key_id: {key_id}). Use the decrypt tool with the correct key_id to access.",
+                ))
+
         text = _resolve_ref(ref)
 
         # Write to a file so the caller can Read() it
@@ -957,7 +969,7 @@ def guard(
 
     Args:
         ref: A ref string or JSON object.
-        check: The guard to check — one of: "validated", "budget", "classification", "exists".
+        check: The guard to check — one of: "validated", "budget", "classification", "encrypted", "exists".
         value: Required for some checks — e.g. the type name for "validated", the classification level for "classification".
     """
     try:
@@ -988,6 +1000,11 @@ def guard(
                 allowed, reason = monads.check_classification(ref_data, mcps)
                 if not allowed:
                     return json.dumps(response_tools.error_response("guard_failed", reason))
+
+        elif check == "encrypted":
+            can_access, reason = monads.check_encrypted(ref_data, value)
+            if not can_access:
+                return json.dumps(response_tools.error_response("guard_failed", reason))
 
         elif check == "exists":
             ref_str = ref_data.get("ref", ref)
@@ -1051,6 +1068,139 @@ def classify(
     except Exception as e:
         logger.exception("classify failed")
         return json.dumps(response_tools.error_response("classify_error", str(e)))
+
+
+# ── Encrypt / Decrypt Tools ───────────────────────────────────────
+
+
+@mcp.tool()
+def encrypt(ref: str) -> str:
+    """Encrypt a ref's text payload. Returns the ref with a key_id — only callers with the key can decrypt.
+
+    The ref metadata (provenance, classification, etc.) stays visible; only the
+    text content is encrypted. Pass the key_id to specific agents or features
+    that should be able to read the content.
+
+    Args:
+        ref: A ref string like "run_id/agent_id", or a JSON object with a "ref" field.
+    """
+    try:
+        if ref.startswith("{"):
+            ref_data = json.loads(ref)
+        else:
+            ref_data = {"ref": ref}
+
+        ref_str = ref_data.get("ref", ref)
+
+        if monads.is_encrypted(ref_data):
+            return json.dumps(response_tools.error_response("already_encrypted", f"Ref is already encrypted (key_id: {ref_data['encrypted']['key_id']})"))
+
+        # Generate key and encrypt the text on disk
+        key_id, key = monads._generate_key()
+        monads._store_key(key_id, key)
+
+        result_file = os.path.join("/tmp/swarm-mcp", ref_str, "result.json")
+        if not os.path.exists(result_file):
+            return json.dumps(response_tools.error_response("not_found", f"No result found for ref: {ref_str}"))
+
+        with open(result_file) as f:
+            result_data = json.load(f)
+
+        text = result_data.get("text", "")
+        if not text:
+            return json.dumps(response_tools.error_response("empty", "Ref has no text to encrypt"))
+
+        ciphertext = monads.encrypt_text(text, key)
+        result_data["text"] = ciphertext.decode()
+        result_data["encrypted"] = True
+        with open(result_file, "w") as f:
+            json.dump(result_data, f, indent=2, default=str)
+
+        # Also remove any plaintext output.md
+        output_md = os.path.join("/tmp/swarm-mcp", ref_str, "output.md")
+        if os.path.exists(output_md):
+            os.remove(output_md)
+
+        monads.stamp_encrypted(ref_data, key_id)
+
+        # Persist encryption metadata back to result.json
+        with open(result_file) as f:
+            result_data = json.load(f)
+        result_data["encryption"] = ref_data["encrypted"]
+        with open(result_file, "w") as f:
+            json.dump(result_data, f, indent=2, default=str)
+
+        return json.dumps({
+            "ref": ref_str,
+            "key_id": key_id,
+            "status": "encrypted",
+            **{k: v for k, v in ref_data.items() if k != "ref"},
+        })
+
+    except Exception as e:
+        logger.exception("encrypt failed")
+        return json.dumps(response_tools.error_response("encrypt_error", str(e)))
+
+
+@mcp.tool()
+def decrypt(ref: str, key_id: str) -> str:
+    """Decrypt an encrypted ref's text. Writes the plaintext to output.md and returns the path.
+
+    You need the key_id that was returned when the ref was encrypted.
+
+    Args:
+        ref: A ref string like "run_id/agent_id", or a JSON object with a "ref" field.
+        key_id: The key ID returned by the encrypt tool.
+    """
+    try:
+        if ref.startswith("{"):
+            ref_data = json.loads(ref)
+        else:
+            ref_data = {"ref": ref}
+
+        ref_str = ref_data.get("ref", ref)
+
+        result_file = os.path.join("/tmp/swarm-mcp", ref_str, "result.json")
+        if not os.path.exists(result_file):
+            return json.dumps(response_tools.error_response("not_found", f"No result found for ref: {ref_str}"))
+
+        with open(result_file) as f:
+            result_data = json.load(f)
+
+        if not result_data.get("encrypted"):
+            return json.dumps(response_tools.error_response("not_encrypted", "Ref is not encrypted"))
+
+        # Verify key_id matches
+        enc_meta = result_data.get("encryption") or ref_data.get("encrypted", {})
+        expected_key_id = enc_meta.get("key_id")
+        if expected_key_id and expected_key_id != key_id:
+            return json.dumps(response_tools.error_response("wrong_key", f"Key mismatch: expected {expected_key_id}, got {key_id}"))
+
+        # Load the key
+        key = monads._load_key(key_id)
+        if key is None:
+            return json.dumps(response_tools.error_response("key_not_found", f"Key '{key_id}' not found"))
+
+        # Decrypt
+        ciphertext = result_data["text"].encode()
+        plaintext = monads.decrypt_text(ciphertext, key)
+
+        # Write decrypted text to output.md (not back to result.json — keeps ciphertext at rest)
+        output_path = os.path.join("/tmp/swarm-mcp", ref_str, "output.md")
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, "w") as f:
+            f.write(plaintext)
+
+        return json.dumps({
+            "ref": ref_str,
+            "file": output_path,
+            "size": len(plaintext),
+            "key_id": key_id,
+        })
+
+    except Exception as e:
+        logger.exception("decrypt failed")
+        return json.dumps(response_tools.error_response("decrypt_error", str(e)))
 
 
 # ── Pipeline Tool (Free Monad interpreter) ───────────────────────
