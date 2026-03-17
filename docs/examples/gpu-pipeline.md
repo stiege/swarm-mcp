@@ -227,7 +227,7 @@ pipeline(
 The shared directory from `pipeline-run01` is reused, so the checkpoint written
 by the `train` step is still available at `/shared/checkpoints/model_final.pt`.
 
-See [Pipelines](../concepts/pipelines.md#resuming) for full resume semantics.
+See [Pipelines](../concepts/pipelines.md#resume-support) for full resume semantics.
 
 ---
 
