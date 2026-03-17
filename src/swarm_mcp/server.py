@@ -603,6 +603,106 @@ def unwrap(ref: str) -> str:
         return json.dumps(response_tools.error_response("unwrap_error", str(e)))
 
 
+@mcp.tool()
+def inspect(ref: str) -> str:
+    """Inspect an agent's full execution state — partial output, stream log, files produced.
+
+    Use after a timeout, crash, or unexpected result to understand what happened.
+    Writes a human-readable debug report to output_dir/inspect.md.
+
+    Args:
+        ref: A ref string like "run_id/agent_id".
+    """
+    try:
+        if ref.startswith("{"):
+            ref_data = json.loads(ref)
+            ref = ref_data.get("ref", ref)
+
+        output_dir = os.path.join("/tmp/swarm-mcp", ref)
+        if not os.path.isdir(output_dir):
+            return json.dumps(response_tools.error_response("not_found", f"No output dir for ref: {ref}"))
+
+        report_parts = [f"# Inspection: {ref}\n"]
+
+        # Result metadata
+        result_file = os.path.join(output_dir, "result.json")
+        if os.path.exists(result_file):
+            with open(result_file) as f:
+                result_data = json.load(f)
+            report_parts.append("## Result")
+            report_parts.append(f"- exit_code: {result_data.get('exit_code')}")
+            report_parts.append(f"- error: {result_data.get('error')}")
+            report_parts.append(f"- duration: {result_data.get('duration_seconds')}s")
+            report_parts.append(f"- cost: ${result_data.get('cost_usd') or 'unknown'}")
+            text = result_data.get("text", "")
+            report_parts.append(f"- text length: {len(text)} chars")
+            if text:
+                report_parts.append(f"\n### Output Text (first 2000 chars)\n```\n{text[:2000]}\n```")
+
+        # Stream log summary
+        stream_file = os.path.join(output_dir, "stream.jsonl")
+        if os.path.exists(stream_file):
+            tool_calls = []
+            thinking_snippets = []
+            text_chunks = []
+            errors = []
+            with open(stream_file) as f:
+                for line in f:
+                    try:
+                        obj = json.loads(line.strip())
+                    except json.JSONDecodeError:
+                        continue
+                    msg_type = obj.get("type")
+                    if msg_type == "assistant":
+                        for block in obj.get("message", {}).get("content", []):
+                            if isinstance(block, dict):
+                                if block.get("type") == "tool_use":
+                                    tool_calls.append(block.get("name", "?"))
+                                elif block.get("type") == "thinking":
+                                    snippet = block.get("thinking", "")[:150]
+                                    thinking_snippets.append(snippet)
+                                elif block.get("type") == "text":
+                                    text_chunks.append(block.get("text", "")[:200])
+
+            report_parts.append(f"\n## Stream Log ({os.path.getsize(stream_file)} bytes)")
+            if tool_calls:
+                report_parts.append(f"- Tool calls: {', '.join(tool_calls)}")
+            if thinking_snippets:
+                report_parts.append(f"- Thinking steps: {len(thinking_snippets)}")
+                for i, s in enumerate(thinking_snippets[:5]):
+                    report_parts.append(f"  {i}: {s}...")
+            if text_chunks:
+                report_parts.append(f"- Text chunks: {len(text_chunks)}")
+
+        # Files in output dir
+        files = []
+        for entry in os.scandir(output_dir):
+            if entry.is_file():
+                files.append({"name": entry.name, "size": entry.stat().st_size})
+            elif entry.is_dir():
+                files.append({"name": entry.name + "/", "type": "dir"})
+        report_parts.append(f"\n## Files in {output_dir}")
+        for f_info in files:
+            report_parts.append(f"- {f_info['name']} ({f_info.get('size', '?')} bytes)")
+
+        # Write report
+        report = "\n".join(report_parts)
+        inspect_path = os.path.join(output_dir, "inspect.md")
+        with open(inspect_path, "w") as f:
+            f.write(report)
+
+        return json.dumps({
+            "ref": ref,
+            "file": inspect_path,
+            "tool_calls": tool_calls if 'tool_calls' in dir() else [],
+            "has_partial_output": bool(text) if 'text' in dir() else False,
+        })
+
+    except Exception as e:
+        logger.exception("inspect failed")
+        return json.dumps(response_tools.error_response("inspect_error", str(e)))
+
+
 # ── Pipeline Tool (Free Monad interpreter) ───────────────────────
 
 
