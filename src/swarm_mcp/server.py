@@ -669,6 +669,26 @@ def inspect(ref: str) -> str:
             if text_chunks:
                 report_parts.append(f"- Text chunks: {len(text_chunks)}")
 
+        # Artifacts from PostToolUse hooks
+        artifacts_file = os.path.join(output_dir, "artifacts.jsonl")
+        if os.path.exists(artifacts_file):
+            artifacts = []
+            with open(artifacts_file) as f:
+                for line in f:
+                    try:
+                        artifacts.append(json.loads(line.strip()))
+                    except json.JSONDecodeError:
+                        continue
+            report_parts.append(f"\n## Artifacts ({len(artifacts)} logged)")
+            for a in artifacts:
+                tool = a.get("tool", "?")
+                resp = a.get("response", {})
+                # Summarise the key info per tool type
+                if "message_id" in str(resp) or "success" in str(resp):
+                    report_parts.append(f"- {tool}: {json.dumps(resp)[:200]}")
+                else:
+                    report_parts.append(f"- {tool}: {json.dumps(a.get('input', {}))[:150]}")
+
         # Files in output dir
         files = []
         for entry in os.scandir(output_dir):

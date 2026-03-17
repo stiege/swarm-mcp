@@ -90,6 +90,26 @@ def _setup_agent_home(output_dir: str, spec: SandboxSpec) -> str:
     with open(os.path.join(home_dir, ".claude.json"), "w") as f:
         json.dump(minimal_config, f)
 
+    # Inject PostToolUse hook for artifact logging
+    settings = {
+        "hooks": {
+            "PostToolUse": [
+                {
+                    "matcher": "mcp__.*|Write",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "/opt/swarm/hooks/log-artifacts.sh",
+                            "timeout": 5,
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+    with open(os.path.join(claude_dir, "settings.json"), "w") as f:
+        json.dump(settings, f)
+
     # Write CLAUDE.md to workspace if specified
     if spec.claude_md:
         workspace_dir = os.path.join(output_dir, "workspace")

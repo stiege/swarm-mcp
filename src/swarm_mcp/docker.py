@@ -9,6 +9,7 @@ from .sandbox import SandboxSpec
 logger = logging.getLogger(__name__)
 
 IMAGE_NAME = "swarm-agent"
+HOOKS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "hooks")
 CLAUDE_DIR = os.path.expanduser("~/.claude")
 CLAUDE_JSON = os.path.expanduser("~/.claude.json")
 CONTAINER_HOME = "/home/ubuntu"
@@ -64,6 +65,8 @@ def get_docker_run_cmd(
         "-v", f"{output_dir}:/output:rw",
         "-e", f"HOME={CONTAINER_HOME}",
         "-e", "CLAUDECODE=",
+        # Mount artifact logging hooks
+        "-v", f"{HOOKS_DIR}:/opt/swarm/hooks:ro",
     ]
 
     # Resource limits
