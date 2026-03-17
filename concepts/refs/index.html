@@ -1,0 +1,1874 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Parallel Claude agent orchestration via Docker + MCP">
+      
+      
+      
+        <link rel="canonical" href="https://stiege.github.io/swarm-mcp/concepts/refs/">
+      
+      
+        <link rel="prev" href="../../quickstart/">
+      
+      
+        <link rel="next" href="../combinators/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
+    
+    
+      
+        <title>Refs - swarm-mcp</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#refs-the-monad-stack" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="swarm-mcp" class="md-header__button md-logo" aria-label="swarm-mcp" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            swarm-mcp
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Refs
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/stiege/swarm-mcp" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../quickstart/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../examples/research/" class="md-tabs__link">
+          
+  
+  
+  Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../observability/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Observability
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../security/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Security
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="swarm-mcp" class="md-nav__button md-logo" aria-label="swarm-mcp" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    swarm-mcp
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/stiege/swarm-mcp" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Refs
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Refs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-refs-instead-of-raw-text" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Refs Instead of Raw Text?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ref-anatomy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ref Anatomy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-lives-on-disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Lives on Disk
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What Lives on Disk">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resultjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        result.json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#streamjsonl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        stream.jsonl
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#artifactsjsonl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        artifacts.jsonl
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#outputmd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        output.md
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prompttxt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        prompt.txt
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-monad-stack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Monad Stack
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Monad Stack">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-cost" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Cost
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-validated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Validated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-retried" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Retried
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-classified" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Classified
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-encrypted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Encrypted
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-fully-enriched-ref" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A Fully Enriched Ref
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unwrap-vs-pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unwrap vs Pass
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../combinators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combinators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipelines/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sandboxes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sandboxes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/research/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research Fan-Out
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/code-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Review Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/gpu-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GPU Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-refs-instead-of-raw-text" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Refs Instead of Raw Text?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ref-anatomy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ref Anatomy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-lives-on-disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Lives on Disk
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What Lives on Disk">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resultjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        result.json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#streamjsonl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        stream.jsonl
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#artifactsjsonl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        artifacts.jsonl
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#outputmd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        output.md
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prompttxt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        prompt.txt
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-monad-stack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Monad Stack
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Monad Stack">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-cost" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Cost
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-validated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Validated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-retried" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Retried
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-classified" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Classified
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-encrypted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Encrypted
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-fully-enriched-ref" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A Fully Enriched Ref
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unwrap-vs-pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unwrap vs Pass
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="refs-the-monad-stack">Refs &amp; The Monad Stack</h1>
+<p>A <strong>ref</strong> is the fundamental unit of data exchange in swarm-mcp. Instead of passing raw text between combinators, every agent execution produces a ref — a lightweight pointer to results stored on disk, enriched with metadata that travels alongside the data.</p>
+<hr />
+<h2 id="why-refs-instead-of-raw-text">Why Refs Instead of Raw Text?</h2>
+<p><strong>Lazy evaluation.</strong> Agent output — which can be thousands of tokens — stays on disk until something explicitly needs it. Combinators like <code>chain</code>, <code>reduce</code>, and <code>filter</code> can inspect metadata, route, validate, and transform without deserializing large payloads through the MCP protocol.</p>
+<p><strong>Composability.</strong> A ref returned by <code>run</code> can be handed directly to <code>guard</code>, <code>filter</code>, <code>reduce</code>, or used as context in a <code>chain</code> stage. The downstream combinator decides when (and whether) to unwrap. This keeps pipeline definitions concise and avoids redundant data copies.</p>
+<p><strong>Safety.</strong> Every ref carries the metadata needed to reason about the result: who produced it, what it cost, whether it passed type validation, what security classification it carries, and whether it was encrypted. That metadata is never separated from the result because it is part of the ref.</p>
+<hr />
+<h2 id="ref-anatomy">Ref Anatomy</h2>
+<p>A ref is a flat Python dict (serialized to JSON at the MCP boundary). The core fields produced by every <code>run</code> call are:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;agent_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;agent-3f7a&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">&quot;ref&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;run-9b2c/agent-3f7a&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">&quot;exit_code&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">&quot;duration_seconds&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">14.3</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">&quot;cost_usd&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.0041</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-opus-4-5&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span><span class="nt">&quot;output_dir&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/tmp/swarm-mcp/run-9b2c/agent-3f7a&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="nt">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">}</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent_id</code></td>
+<td>string</td>
+<td>Unique identifier for this agent execution</td>
+</tr>
+<tr>
+<td><code>ref</code></td>
+<td>string</td>
+<td>Canonical address: <code>run_id/agent_id</code> — used to resolve content from disk</td>
+</tr>
+<tr>
+<td><code>exit_code</code></td>
+<td>int</td>
+<td>0 = success, non-zero = failure</td>
+</tr>
+<tr>
+<td><code>duration_seconds</code></td>
+<td>float</td>
+<td>Wall-clock time for the agent run</td>
+</tr>
+<tr>
+<td><code>cost_usd</code></td>
+<td>float</td>
+<td>Token cost for this execution</td>
+</tr>
+<tr>
+<td><code>model</code></td>
+<td>string</td>
+<td>Claude model variant used</td>
+</tr>
+<tr>
+<td><code>output_dir</code></td>
+<td>string</td>
+<td>Absolute path to the agent's output directory</td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td>string or null</td>
+<td>Error message if <code>exit_code != 0</code></td>
+</tr>
+</tbody>
+</table>
+<p>The <code>ref</code> field (<code>run_id/agent_id</code>) is the stable address used by <code>_resolve_ref()</code> to load the agent's text output from disk without carrying that text in the ref dict itself.</p>
+<hr />
+<h2 id="what-lives-on-disk">What Lives on Disk</h2>
+<p>Each agent execution creates a directory at <code>/tmp/swarm-mcp/{run_id}/{agent_id}/</code> containing five files:</p>
+<h3 id="resultjson"><code>result.json</code></h3>
+<p>The full serialized result from the Claude SDK, including the complete message history, tool calls, and metadata. This is the authoritative source of truth. <code>_resolve_ref()</code> reads this file when a combinator needs the agent's text output.</p>
+<h3 id="streamjsonl"><code>stream.jsonl</code></h3>
+<p>A newline-delimited JSON log of every event emitted by the Claude streaming API during the run. Useful for debugging token-by-token what the agent did and when.</p>
+<h3 id="artifactsjsonl"><code>artifacts.jsonl</code></h3>
+<p>Logs written by the <code>PostToolUse</code> hook. Every tool call the agent made (bash, computer, file read/write, MCP calls) is recorded here with its inputs and outputs. Use this to audit exactly what side effects the agent produced.</p>
+<h3 id="outputmd"><code>output.md</code></h3>
+<p>The agent's final text response, unwrapped from the SDK result structure and written as plain Markdown. Human-readable; useful for quick inspection without parsing JSON.</p>
+<h3 id="prompttxt"><code>prompt.txt</code></h3>
+<p>The original prompt sent to the agent. Stored so that you can reconstruct exactly what the agent was asked, independent of the calling context.</p>
+<div class="admonition tip">
+<p class="admonition-title">Inspecting a run</p>
+<p>After a <code>run</code> or <code>par</code> call, you can browse <code>/tmp/swarm-mcp/{run_id}/</code> to inspect every agent's artifacts, stream, and output without any additional tool calls.</p>
+</div>
+<hr />
+<h2 id="the-monad-stack">The Monad Stack</h2>
+<p>After a raw ref is produced by an agent execution, <code>enrich_ref()</code> applies a stack of <strong>monad-style stamps</strong> — each one adds a new layer of metadata without mutating the fields already present. You can think of each stamp as wrapping the ref in a new context that downstream combinators can inspect and enforce.</p>
+<p>The stamps are applied in this order:</p>
+<h3 id="1-provenance">1. Provenance</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">stamp_provenance</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="n">parent_refs</span><span class="p">,</span> <span class="n">content_hash</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">)</span>
+</code></pre></div>
+<p>Stamps where this result came from and what it contains.</p>
+<table>
+<thead>
+<tr>
+<th>Field added</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>parent_refs</code></td>
+<td>List of ref addresses that fed into this result (e.g., in a <code>chain</code> stage)</td>
+</tr>
+<tr>
+<td><code>content_hash</code></td>
+<td>SHA-256 of the output text — enables deduplication and integrity checks</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>ISO-8601 wall-clock time the result was produced</td>
+</tr>
+</tbody>
+</table>
+<h3 id="2-cost">2. Cost</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">stamp_cost</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="n">step_cost</span><span class="p">,</span> <span class="n">budget_tracker</span><span class="p">)</span>
+</code></pre></div>
+<p>Stamps financial accounting for the run and its context.</p>
+<table>
+<thead>
+<tr>
+<th>Field added</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_cost</code></td>
+<td>Cost of this specific agent execution in USD</td>
+</tr>
+<tr>
+<td><code>spent_so_far</code></td>
+<td>Cumulative cost across the current run or pipeline</td>
+</tr>
+<tr>
+<td><code>remaining</code></td>
+<td>Budget remaining (<code>limit - spent_so_far</code>)</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td>The <code>max_budget</code> ceiling set by the caller</td>
+</tr>
+</tbody>
+</table>
+<h3 id="3-time">3. Time</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">stamp_deadline</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="n">deadline</span><span class="p">)</span>
+</code></pre></div>
+<p>Stamps time-awareness so downstream combinators can abort work that has already missed its window.</p>
+<table>
+<thead>
+<tr>
+<th>Field added</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deadline</code></td>
+<td>Unix timestamp after which this result (or dependent work) is stale</td>
+</tr>
+<tr>
+<td><code>time_remaining</code></td>
+<td>Seconds between stamp time and the deadline</td>
+</tr>
+</tbody>
+</table>
+<h3 id="4-validated">4. Validated</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">stamp_validated</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="n">validated_as</span><span class="p">,</span> <span class="n">verdict</span><span class="p">,</span> <span class="n">validation_ref</span><span class="p">)</span>
+</code></pre></div>
+<p>Stamps the result of type-gate validation (used by <code>filter</code> and <code>retry</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Field added</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>validated_as</code></td>
+<td>The declared output type that was checked (e.g., <code>"json"</code>, <code>"python"</code>)</td>
+</tr>
+<tr>
+<td><code>validation_verdict</code></td>
+<td><code>"VALID"</code> or <code>"INVALID"</code></td>
+</tr>
+<tr>
+<td><code>validation_ref</code></td>
+<td>Ref address of the validator agent's own result, for auditability</td>
+</tr>
+</tbody>
+</table>
+<h3 id="5-retried">5. Retried</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">stamp_retry</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="n">attempt</span><span class="p">,</span> <span class="n">max_retries</span><span class="p">,</span> <span class="n">prior_errors</span><span class="p">)</span>
+</code></pre></div>
+<p>Stamps retry state so the agent receiving a re-run knows its history.</p>
+<table>
+<thead>
+<tr>
+<th>Field added</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>attempt</code></td>
+<td>Current attempt number (1-indexed)</td>
+</tr>
+<tr>
+<td><code>max_retries</code></td>
+<td>Maximum attempts allowed</td>
+</tr>
+<tr>
+<td><code>prior_errors</code></td>
+<td>List of error messages from previous failed attempts</td>
+</tr>
+</tbody>
+</table>
+<h3 id="6-classified">6. Classified</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">stamp_classification</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span> <span class="n">allowed_mcps</span><span class="p">,</span> <span class="n">denied_mcps</span><span class="p">)</span>
+</code></pre></div>
+<p>Stamps security classification so <code>guard</code> can enforce access control policies.</p>
+<table>
+<thead>
+<tr>
+<th>Field added</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>level</code></td>
+<td>Human-readable classification label (e.g., <code>"confidential"</code>)</td>
+</tr>
+<tr>
+<td><code>level_numeric</code></td>
+<td>Numeric equivalent for comparison operators</td>
+</tr>
+<tr>
+<td><code>allowed_mcps</code></td>
+<td>List of MCP server names this result may flow to</td>
+</tr>
+<tr>
+<td><code>denied_mcps</code></td>
+<td>List of MCP server names this result must not reach</td>
+</tr>
+</tbody>
+</table>
+<h3 id="7-encrypted">7. Encrypted</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">stamp_encrypted</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="n">key_id</span><span class="p">,</span> <span class="n">algorithm</span><span class="p">)</span>
+</code></pre></div>
+<p>Stamps encryption provenance so consumers know whether they need to decrypt before use.</p>
+<table>
+<thead>
+<tr>
+<th>Field added</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>key_id</code></td>
+<td>Identifier of the key used to encrypt the payload</td>
+</tr>
+<tr>
+<td><code>algorithm</code></td>
+<td>Encryption algorithm (e.g., <code>"AES-256-GCM"</code>)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="a-fully-enriched-ref">A Fully Enriched Ref</h2>
+<p>After the full monad stack has been applied, a ref might look like this:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">&quot;agent_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;agent-3f7a&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">&quot;ref&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;run-9b2c/agent-3f7a&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">&quot;exit_code&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span><span class="nt">&quot;duration_seconds&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">14.3</span><span class="p">,</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="nt">&quot;cost_usd&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.0041</span><span class="p">,</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-opus-4-5&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">  </span><span class="nt">&quot;output_dir&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/tmp/swarm-mcp/run-9b2c/agent-3f7a&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">  </span><span class="nt">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">  </span><span class="nt">&quot;parent_refs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;run-8a1b/agent-0c9d&quot;</span><span class="p">],</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">  </span><span class="nt">&quot;content_hash&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;e3b0c44298fc1c149afb4c8996fb924...&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">  </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-17T14:22:05Z&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="w">  </span><span class="nt">&quot;step_cost&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.0041</span><span class="p">,</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="w">  </span><span class="nt">&quot;spent_so_far&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.0312</span><span class="p">,</span>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="w">  </span><span class="nt">&quot;remaining&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.9688</span><span class="p">,</span>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="w">  </span><span class="nt">&quot;limit&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.00</span><span class="p">,</span>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="w">  </span><span class="nt">&quot;deadline&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1742221200</span><span class="p">,</span>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="w">  </span><span class="nt">&quot;time_remaining&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">3595.2</span><span class="p">,</span>
+<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>
+<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a><span class="w">  </span><span class="nt">&quot;validated_as&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;json&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a><span class="w">  </span><span class="nt">&quot;validation_verdict&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;VALID&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a><span class="w">  </span><span class="nt">&quot;validation_ref&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;run-9b2c/validator-agent-7e2f&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a>
+<a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a><span class="w">  </span><span class="nt">&quot;attempt&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a><span class="w">  </span><span class="nt">&quot;max_retries&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
+<a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a><span class="w">  </span><span class="nt">&quot;prior_errors&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;JSONDecodeError: Expecting value at line 1&quot;</span><span class="p">],</span>
+<a id="__codelineno-8-30" name="__codelineno-8-30" href="#__codelineno-8-30"></a>
+<a id="__codelineno-8-31" name="__codelineno-8-31" href="#__codelineno-8-31"></a><span class="w">  </span><span class="nt">&quot;level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;internal&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-32" name="__codelineno-8-32" href="#__codelineno-8-32"></a><span class="w">  </span><span class="nt">&quot;level_numeric&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-8-33" name="__codelineno-8-33" href="#__codelineno-8-33"></a><span class="w">  </span><span class="nt">&quot;allowed_mcps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;filesystem&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;github&quot;</span><span class="p">],</span>
+<a id="__codelineno-8-34" name="__codelineno-8-34" href="#__codelineno-8-34"></a><span class="w">  </span><span class="nt">&quot;denied_mcps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;web-search&quot;</span><span class="p">],</span>
+<a id="__codelineno-8-35" name="__codelineno-8-35" href="#__codelineno-8-35"></a>
+<a id="__codelineno-8-36" name="__codelineno-8-36" href="#__codelineno-8-36"></a><span class="w">  </span><span class="nt">&quot;key_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;key-prod-2026-03&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-37" name="__codelineno-8-37" href="#__codelineno-8-37"></a><span class="w">  </span><span class="nt">&quot;algorithm&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AES-256-GCM&quot;</span>
+<a id="__codelineno-8-38" name="__codelineno-8-38" href="#__codelineno-8-38"></a><span class="p">}</span>
+</code></pre></div>
+<p>Not every ref will have all layers — stamps are applied selectively based on what the calling combinator configured.</p>
+<hr />
+<h2 id="unwrap-vs-pass">Unwrap vs Pass</h2>
+<p>Most of the time you should <strong>pass refs between combinators</strong> and let the pipeline stay lazy:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1">// chain: pass the ref from stage 1 as context into stage 2</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="c1">// stage 2 receives the text automatically — you never unwrap manually</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="p">{</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="nt">&quot;stages&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Analyze this dataset and identify anomalies.&quot;</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Write a remediation plan for the anomalies above.&quot;</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="p">}</span>
+</code></pre></div>
+<p><strong>Unwrap</strong> (call <code>_resolve_ref()</code> / read <code>output.md</code>) when:</p>
+<ul>
+<li>You need to display final output to a user</li>
+<li>You are passing text into a non-swarm-mcp system that does not understand refs</li>
+<li>You are building a custom combinator that must operate on the actual content</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Don't unwrap prematurely</p>
+<p>Unwrapping inside a pipeline defeats lazy evaluation. If you find yourself extracting text from a ref only to pass it into another <code>run</code> call, use <code>chain</code> or <code>reduce</code> instead — they handle the unwrap internally and maintain full metadata lineage.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Mixed inputs</p>
+<p><code>_extract_texts()</code> handles mixed input arrays that contain plain strings, dicts with a <code>.text</code> field, and refs with a <code>.ref</code> field. <code>reduce</code> and <code>map_reduce</code> use this automatically, so you can freely mix literal text and refs in the same input list.</p>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

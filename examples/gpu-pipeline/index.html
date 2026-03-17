@@ -1,0 +1,1676 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Parallel Claude agent orchestration via Docker + MCP">
+      
+      
+      
+        <link rel="canonical" href="https://stiege.github.io/swarm-mcp/examples/gpu-pipeline/">
+      
+      
+        <link rel="prev" href="../code-review/">
+      
+      
+        <link rel="next" href="../../observability/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
+    
+    
+      
+        <title>GPU Pipeline - swarm-mcp</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#gpu-pipeline" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="swarm-mcp" class="md-header__button md-logo" aria-label="swarm-mcp" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            swarm-mcp
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              GPU Pipeline
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/stiege/swarm-mcp" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../quickstart/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/refs/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../research/" class="md-tabs__link">
+          
+  
+  
+  Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../observability/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Observability
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../security/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Security
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="swarm-mcp" class="md-nav__button md-logo" aria-label="swarm-mcp" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    swarm-mcp
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/stiege/swarm-mcp" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/refs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Refs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/combinators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combinators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/pipelines/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/sandboxes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sandboxes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../research/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research Fan-Out
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../code-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Review Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GPU Pipeline
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GPU Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prerequisites">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#enable-gpu-support-in-docker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enable GPU support in Docker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configure-the-resource-pool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure the resource pool
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-pipeline-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full Pipeline Definition
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-parameters-explained" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Parameters Explained
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Key Parameters Explained">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#gpu-true" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        gpu: true
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resources-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resources: ["gpu"]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#memory-16g" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        memory: "16g"
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-shared-directory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The /shared/ Directory
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-the-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the Results
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resuming-a-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resuming a Pipeline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multiple-independent-gpu-jobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiple Independent GPU Jobs
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prerequisites">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#enable-gpu-support-in-docker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enable GPU support in Docker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configure-the-resource-pool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure the resource pool
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-pipeline-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full Pipeline Definition
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-parameters-explained" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Parameters Explained
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Key Parameters Explained">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#gpu-true" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        gpu: true
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resources-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resources: ["gpu"]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#memory-16g" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        memory: "16g"
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-shared-directory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The /shared/ Directory
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-the-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the Results
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resuming-a-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resuming a Pipeline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multiple-independent-gpu-jobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiple Independent GPU Jobs
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="gpu-pipeline">GPU Pipeline</h1>
+<p>Run a GPU-accelerated ML training and evaluation pipeline using <code>pipeline()</code>.
+The training step acquires the GPU resource, trains a model, and writes
+checkpoints to a shared directory. The evaluation step reads those checkpoints
+and reports metrics.</p>
+<hr />
+<h2 id="overview">Overview</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pipeline steps
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>─────────────
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  train   →  gpu=true, resources=[&quot;gpu&quot;], mounts=[dataset]
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>              writes /shared/checkpoints/
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                │
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  evaluate →   reads /shared/checkpoints/
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                writes /shared/metrics.json
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                │
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>  report   →   reads /shared/metrics.json
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>                produces final summary ref
+</code></pre></div>
+<p>The <code>"gpu"</code> resource pool is a semaphore with capacity configurable via
+<code>SWARM_RESOURCE_gpu</code>. Only one training step can hold the GPU at a time; any
+other GPU jobs queue until it finishes.</p>
+<hr />
+<h2 id="prerequisites">Prerequisites</h2>
+<h3 id="enable-gpu-support-in-docker">Enable GPU support in Docker</h3>
+<p>Your Docker daemon must be configured with the NVIDIA Container Toolkit. Verify:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>nvidia/cuda:12.0-base<span class="w"> </span>nvidia-smi
+</code></pre></div>
+<h3 id="configure-the-resource-pool">Configure the resource pool</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">SWARM_RESOURCE_gpu</span><span class="o">=</span><span class="m">1</span><span class="w">   </span><span class="c1"># one agent may use the GPU at a time (default)</span>
+</code></pre></div>
+<p>If you have multiple GPUs and want to allow more concurrent GPU agents, set this
+to the number of available GPUs.</p>
+<hr />
+<h2 id="full-pipeline-definition">Full Pipeline Definition</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">pipeline</span><span class="p">(</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">definition</span><span class="o">=</span><span class="s1">&#39;{</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>      <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;ml-training-pipeline&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>      <span class="s2">&quot;budget&quot;</span><span class="p">:</span> <span class="mf">5.00</span><span class="p">,</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>      <span class="s2">&quot;deadline_seconds&quot;</span><span class="p">:</span> <span class="mi">7200</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>      <span class="s2">&quot;steps&quot;</span><span class="p">:</span> <span class="p">[</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>        <span class="p">{</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>          <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;train&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>          <span class="s2">&quot;prompt&quot;</span><span class="p">:</span> <span class="s2">&quot;Train a sentiment classification model using the dataset at /data/train.csv. Use PyTorch with a pre-trained DistilBERT backbone. Fine-tune for 3 epochs. Save the final checkpoint to /shared/checkpoints/model_final.pt and save training metrics (loss per epoch, final accuracy on /data/val.csv) to /shared/training_metrics.json.&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>          <span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="s2">&quot;sonnet&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>          <span class="s2">&quot;tools&quot;</span><span class="p">:</span> <span class="s2">&quot;Read,Write,Bash&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>          <span class="s2">&quot;gpu&quot;</span><span class="p">:</span> <span class="n">true</span><span class="p">,</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>          <span class="s2">&quot;resources&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;gpu&quot;</span><span class="p">],</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>          <span class="s2">&quot;mounts&quot;</span><span class="p">:</span> <span class="p">[</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>            <span class="p">{</span><span class="s2">&quot;host_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/data/sentiment-dataset&quot;</span><span class="p">,</span> <span class="s2">&quot;container_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/data&quot;</span><span class="p">,</span> <span class="s2">&quot;readonly&quot;</span><span class="p">:</span> <span class="n">true</span><span class="p">}</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>          <span class="p">],</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>          <span class="s2">&quot;memory&quot;</span><span class="p">:</span> <span class="s2">&quot;16g&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>          <span class="s2">&quot;timeout&quot;</span><span class="p">:</span> <span class="mi">3600</span><span class="p">,</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>          <span class="s2">&quot;on_fail&quot;</span><span class="p">:</span> <span class="s2">&quot;train-retry&quot;</span>
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>        <span class="p">},</span>
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>        <span class="p">{</span>
+<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>          <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;train-retry&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>          <span class="s2">&quot;prompt&quot;</span><span class="p">:</span> <span class="s2">&quot;The training step failed. Read the error output from /shared/training_metrics.json if it exists, or diagnose from context. Retry training with a smaller batch size (use --batch-size 8) and reduced learning rate. Save checkpoint to /shared/checkpoints/model_final.pt.&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>          <span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="s2">&quot;sonnet&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a>          <span class="s2">&quot;tools&quot;</span><span class="p">:</span> <span class="s2">&quot;Read,Write,Bash&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a>          <span class="s2">&quot;gpu&quot;</span><span class="p">:</span> <span class="n">true</span><span class="p">,</span>
+<a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a>          <span class="s2">&quot;resources&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;gpu&quot;</span><span class="p">],</span>
+<a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a>          <span class="s2">&quot;mounts&quot;</span><span class="p">:</span> <span class="p">[</span>
+<a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a>            <span class="p">{</span><span class="s2">&quot;host_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/data/sentiment-dataset&quot;</span><span class="p">,</span> <span class="s2">&quot;container_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/data&quot;</span><span class="p">,</span> <span class="s2">&quot;readonly&quot;</span><span class="p">:</span> <span class="n">true</span><span class="p">}</span>
+<a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a>          <span class="p">],</span>
+<a id="__codelineno-3-31" name="__codelineno-3-31" href="#__codelineno-3-31"></a>          <span class="s2">&quot;memory&quot;</span><span class="p">:</span> <span class="s2">&quot;16g&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-32" name="__codelineno-3-32" href="#__codelineno-3-32"></a>          <span class="s2">&quot;timeout&quot;</span><span class="p">:</span> <span class="mi">3600</span><span class="p">,</span>
+<a id="__codelineno-3-33" name="__codelineno-3-33" href="#__codelineno-3-33"></a>          <span class="s2">&quot;condition&quot;</span><span class="p">:</span> <span class="s2">&quot;prev.error&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-34" name="__codelineno-3-34" href="#__codelineno-3-34"></a>          <span class="s2">&quot;next&quot;</span><span class="p">:</span> <span class="s2">&quot;evaluate&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-35" name="__codelineno-3-35" href="#__codelineno-3-35"></a>          <span class="s2">&quot;max_retries&quot;</span><span class="p">:</span> <span class="mi">1</span>
+<a id="__codelineno-3-36" name="__codelineno-3-36" href="#__codelineno-3-36"></a>        <span class="p">},</span>
+<a id="__codelineno-3-37" name="__codelineno-3-37" href="#__codelineno-3-37"></a>        <span class="p">{</span>
+<a id="__codelineno-3-38" name="__codelineno-3-38" href="#__codelineno-3-38"></a>          <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;evaluate&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-39" name="__codelineno-3-39" href="#__codelineno-3-39"></a>          <span class="s2">&quot;prompt&quot;</span><span class="p">:</span> <span class="s2">&quot;Evaluate the trained model checkpoint at /shared/checkpoints/model_final.pt on the test set at /data/test.csv. Report: accuracy, precision, recall, F1 per class, and a confusion matrix. Write all results to /shared/metrics.json. Also write a human-readable summary to /shared/eval_report.md.&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-40" name="__codelineno-3-40" href="#__codelineno-3-40"></a>          <span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="s2">&quot;sonnet&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-41" name="__codelineno-3-41" href="#__codelineno-3-41"></a>          <span class="s2">&quot;tools&quot;</span><span class="p">:</span> <span class="s2">&quot;Read,Write,Bash&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-42" name="__codelineno-3-42" href="#__codelineno-3-42"></a>          <span class="s2">&quot;gpu&quot;</span><span class="p">:</span> <span class="n">true</span><span class="p">,</span>
+<a id="__codelineno-3-43" name="__codelineno-3-43" href="#__codelineno-3-43"></a>          <span class="s2">&quot;resources&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;gpu&quot;</span><span class="p">],</span>
+<a id="__codelineno-3-44" name="__codelineno-3-44" href="#__codelineno-3-44"></a>          <span class="s2">&quot;mounts&quot;</span><span class="p">:</span> <span class="p">[</span>
+<a id="__codelineno-3-45" name="__codelineno-3-45" href="#__codelineno-3-45"></a>            <span class="p">{</span><span class="s2">&quot;host_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/data/sentiment-dataset&quot;</span><span class="p">,</span> <span class="s2">&quot;container_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/data&quot;</span><span class="p">,</span> <span class="s2">&quot;readonly&quot;</span><span class="p">:</span> <span class="n">true</span><span class="p">}</span>
+<a id="__codelineno-3-46" name="__codelineno-3-46" href="#__codelineno-3-46"></a>          <span class="p">],</span>
+<a id="__codelineno-3-47" name="__codelineno-3-47" href="#__codelineno-3-47"></a>          <span class="s2">&quot;memory&quot;</span><span class="p">:</span> <span class="s2">&quot;8g&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-48" name="__codelineno-3-48" href="#__codelineno-3-48"></a>          <span class="s2">&quot;timeout&quot;</span><span class="p">:</span> <span class="mi">600</span><span class="p">,</span>
+<a id="__codelineno-3-49" name="__codelineno-3-49" href="#__codelineno-3-49"></a>          <span class="s2">&quot;on_fail&quot;</span><span class="p">:</span> <span class="s2">&quot;report&quot;</span>
+<a id="__codelineno-3-50" name="__codelineno-3-50" href="#__codelineno-3-50"></a>        <span class="p">},</span>
+<a id="__codelineno-3-51" name="__codelineno-3-51" href="#__codelineno-3-51"></a>        <span class="p">{</span>
+<a id="__codelineno-3-52" name="__codelineno-3-52" href="#__codelineno-3-52"></a>          <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;report&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-53" name="__codelineno-3-53" href="#__codelineno-3-53"></a>          <span class="s2">&quot;prompt&quot;</span><span class="p">:</span> <span class="s2">&quot;Read /shared/metrics.json and /shared/training_metrics.json (if available) and /shared/eval_report.md. Produce a final pipeline report covering: training summary, evaluation results, model quality assessment, and recommendations for improvement. If evaluation failed, explain what went wrong based on available logs.&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-54" name="__codelineno-3-54" href="#__codelineno-3-54"></a>          <span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="s2">&quot;sonnet&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-55" name="__codelineno-3-55" href="#__codelineno-3-55"></a>          <span class="s2">&quot;tools&quot;</span><span class="p">:</span> <span class="s2">&quot;Read,Write&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-56" name="__codelineno-3-56" href="#__codelineno-3-56"></a>          <span class="s2">&quot;timeout&quot;</span><span class="p">:</span> <span class="mi">300</span>
+<a id="__codelineno-3-57" name="__codelineno-3-57" href="#__codelineno-3-57"></a>        <span class="p">}</span>
+<a id="__codelineno-3-58" name="__codelineno-3-58" href="#__codelineno-3-58"></a>      <span class="p">]</span>
+<a id="__codelineno-3-59" name="__codelineno-3-59" href="#__codelineno-3-59"></a>    <span class="p">}</span><span class="s1">&#39;</span>
+<a id="__codelineno-3-60" name="__codelineno-3-60" href="#__codelineno-3-60"></a><span class="p">)</span>
+</code></pre></div>
+<hr />
+<h2 id="key-parameters-explained">Key Parameters Explained</h2>
+<h3 id="gpu-true"><code>gpu: true</code></h3>
+<p>Passes <code>--gpus all</code> to the Docker <code>run</code> command. Without this flag the
+container cannot access the host GPU.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">&quot;gpu&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+</code></pre></div>
+<h3 id="resources-gpu"><code>resources: ["gpu"]</code></h3>
+<p>Acquires the <code>"gpu"</code> named resource pool before the container starts. This is
+the serialization mechanism — when two pipeline steps or independent <code>run()</code>
+calls both declare <code>resources: ["gpu"]</code>, they queue instead of competing for
+the device.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">&quot;resources&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;gpu&quot;</span><span class="p">]</span>
+</code></pre></div>
+<div class="admonition info">
+<p class="admonition-title">Why both gpu and resources?</p>
+<p><code>gpu: true</code> is the Docker flag. <code>resources: ["gpu"]</code> is the swarm-mcp
+semaphore. You can set <code>gpu: true</code> without <code>resources: ["gpu"]</code> (no
+serialization) or set <code>resources: ["gpu"]</code> without <code>gpu: true</code> (serialization
+for a logical resource that isn't the GPU device itself). In a real GPU
+pipeline, set both.</p>
+</div>
+<h3 id="memory-16g"><code>memory: "16g"</code></h3>
+<p>Docker memory limit. Training large models requires more RAM than the default
+container allocation. Match this to your GPU VRAM and system RAM.</p>
+<hr />
+<h2 id="environment-configuration">Environment Configuration</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># One GPU, serialize all GPU work</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">SWARM_RESOURCE_gpu</span><span class="o">=</span><span class="m">1</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># Allow 2 concurrent GPU jobs (if you have 2 GPUs)</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="nb">export</span><span class="w"> </span><span class="nv">SWARM_RESOURCE_gpu</span><span class="o">=</span><span class="m">2</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># Increase queue timeout — GPU jobs may wait a long time</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="nb">export</span><span class="w"> </span><span class="nv">SWARM_QUEUE_TIMEOUT</span><span class="o">=</span><span class="m">7200</span>
+</code></pre></div>
+<p>Set these before starting the swarm-mcp server.</p>
+<div class="admonition warning">
+<p class="admonition-title">Queue timeout vs execution timeout</p>
+<p><code>SWARM_QUEUE_TIMEOUT</code> is how long an agent will wait <em>in the queue</em> for a
+resource to become available. <code>timeout</code> in the step spec is the execution
+time once the resource is acquired. A job waiting 30 minutes for the GPU
+still gets its full <code>timeout</code> once the GPU is free.</p>
+</div>
+<hr />
+<h2 id="the-shared-directory">The <code>/shared/</code> Directory</h2>
+<p>Every step in a pipeline shares <code>/shared/</code> read-write. This is the file-passing
+channel between steps:</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Writes</th>
+<th>Reads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>train</code></td>
+<td><code>/shared/checkpoints/model_final.pt</code>, <code>/shared/training_metrics.json</code></td>
+<td><code>/data/train.csv</code>, <code>/data/val.csv</code></td>
+</tr>
+<tr>
+<td><code>evaluate</code></td>
+<td><code>/shared/metrics.json</code>, <code>/shared/eval_report.md</code></td>
+<td><code>/shared/checkpoints/model_final.pt</code>, <code>/data/test.csv</code></td>
+</tr>
+<tr>
+<td><code>report</code></td>
+<td>(final output)</td>
+<td><code>/shared/metrics.json</code>, <code>/shared/training_metrics.json</code>, <code>/shared/eval_report.md</code></td>
+</tr>
+</tbody>
+</table>
+<p>Steps do not pass text through MCP protocol. They write files and the next
+step reads them. This handles large artifacts (model checkpoints, datasets)
+without hitting protocol size limits.</p>
+<hr />
+<h2 id="reading-the-results">Reading the Results</h2>
+<p>The pipeline returns a ref for the last completed step:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Get the final report</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">unwrap</span><span class="p">(</span><span class="n">ref</span><span class="o">=</span><span class="s2">&quot;pipeline-run01/report&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">Read</span><span class="p">(</span><span class="s2">&quot;/tmp/swarm-mcp/pipeline-run01/report/output.md&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>To read intermediate results:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Read training metrics directly</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">unwrap</span><span class="p">(</span><span class="n">ref</span><span class="o">=</span><span class="s2">&quot;pipeline-run01/train&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">Read</span><span class="p">(</span><span class="s2">&quot;/tmp/swarm-mcp/pipeline-run01/train/output.md&quot;</span><span class="p">)</span>
+</code></pre></div>
+<hr />
+<h2 id="resuming-a-pipeline">Resuming a Pipeline</h2>
+<p>If training completes but evaluation fails, resume from the evaluation step
+without re-running training:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">pipeline</span><span class="p">(</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">definition</span><span class="o">=</span><span class="s1">&#39;{ &quot;name&quot;: &quot;ml-training-pipeline&quot;, &quot;steps&quot;: [...] }&#39;</span><span class="p">,</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">resume</span><span class="o">=</span><span class="s2">&quot;pipeline-run01/evaluate&quot;</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="p">)</span>
+</code></pre></div>
+<p>The shared directory from <code>pipeline-run01</code> is reused, so the checkpoint written
+by the <code>train</code> step is still available at <code>/shared/checkpoints/model_final.pt</code>.</p>
+<p>See <a href="../../concepts/pipelines/#resuming">Pipelines</a> for full resume semantics.</p>
+<hr />
+<h2 id="multiple-independent-gpu-jobs">Multiple Independent GPU Jobs</h2>
+<p>To run multiple independent GPU training jobs that serialize on the GPU
+resource, use <code>par()</code> with <code>resources</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">par</span><span class="p">(</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="n">tasks</span><span class="o">=</span><span class="s1">&#39;[</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>        <span class="p">{</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>            <span class="s2">&quot;prompt&quot;</span><span class="p">:</span> <span class="s2">&quot;Train model A on /data/dataset-a.csv. Save to /output/model-a.pt.&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>            <span class="s2">&quot;gpu&quot;</span><span class="p">:</span> <span class="n">true</span><span class="p">,</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>            <span class="s2">&quot;resources&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;gpu&quot;</span><span class="p">],</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>            <span class="s2">&quot;mounts&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;host_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/data&quot;</span><span class="p">,</span> <span class="s2">&quot;container_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/data&quot;</span><span class="p">,</span> <span class="s2">&quot;readonly&quot;</span><span class="p">:</span> <span class="n">true</span><span class="p">},</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>                       <span class="p">{</span><span class="s2">&quot;host_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/output&quot;</span><span class="p">,</span> <span class="s2">&quot;container_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/output&quot;</span><span class="p">,</span> <span class="s2">&quot;readonly&quot;</span><span class="p">:</span> <span class="n">false</span><span class="p">}],</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>            <span class="s2">&quot;memory&quot;</span><span class="p">:</span> <span class="s2">&quot;16g&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>            <span class="s2">&quot;timeout&quot;</span><span class="p">:</span> <span class="mi">3600</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>        <span class="p">},</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>        <span class="p">{</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>            <span class="s2">&quot;prompt&quot;</span><span class="p">:</span> <span class="s2">&quot;Train model B on /data/dataset-b.csv. Save to /output/model-b.pt.&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>            <span class="s2">&quot;gpu&quot;</span><span class="p">:</span> <span class="n">true</span><span class="p">,</span>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>            <span class="s2">&quot;resources&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;gpu&quot;</span><span class="p">],</span>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>            <span class="s2">&quot;mounts&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;host_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/data&quot;</span><span class="p">,</span> <span class="s2">&quot;container_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/data&quot;</span><span class="p">,</span> <span class="s2">&quot;readonly&quot;</span><span class="p">:</span> <span class="n">true</span><span class="p">},</span>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a>                       <span class="p">{</span><span class="s2">&quot;host_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/output&quot;</span><span class="p">,</span> <span class="s2">&quot;container_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/output&quot;</span><span class="p">,</span> <span class="s2">&quot;readonly&quot;</span><span class="p">:</span> <span class="n">false</span><span class="p">}],</span>
+<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>            <span class="s2">&quot;memory&quot;</span><span class="p">:</span> <span class="s2">&quot;16g&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a>            <span class="s2">&quot;timeout&quot;</span><span class="p">:</span> <span class="mi">3600</span>
+<a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a>        <span class="p">}</span>
+<a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a>    <span class="p">]</span><span class="s1">&#39;</span>
+<a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a><span class="p">)</span>
+</code></pre></div>
+<p>With <code>SWARM_RESOURCE_gpu=1</code>, the two jobs run sequentially on the GPU even
+though <code>par()</code> would normally run them simultaneously. The second job queues
+until the first releases the <code>"gpu"</code> resource.</p>
+<hr />
+<div class="admonition note">
+<p class="admonition-title">See also</p>
+<ul>
+<li><a href="../../concepts/resources/">Resources &amp; Sandboxes</a> — resource pool configuration</li>
+<li><a href="../../concepts/pipelines/">Pipelines</a> — full pipeline step reference</li>
+<li><a href="../../observability/">Observability</a> — debugging failed training steps</li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
