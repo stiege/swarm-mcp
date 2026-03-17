@@ -403,6 +403,7 @@ def reduce(
     model: str = "sonnet",
     timeout: int = 120,
     system_prompt: str | None = None,
+    mcps: str | list | None = None,
 ) -> str:
     """Synthesise multiple results into one. Accepts plain strings or structured AgentResult objects
     (auto-extracts .text fields), so you can pipe par/map output directly without manual unwrapping.
@@ -415,6 +416,7 @@ def reduce(
         tools: Comma-separated list of allowed Claude tools.
         model: Claude model to use (default: sonnet).
         timeout: Max execution time in seconds (default: 120).
+        mcps: JSON array of MCP server names to attach to the reducer agent.
         system_prompt: System prompt for the reducer agent.
     """
     try:
@@ -432,7 +434,7 @@ def reduce(
 
         spec = _resolve_spec(
             sandbox, network=network, tools=tools, model=model,
-            timeout=timeout, system_prompt=system_prompt,
+            timeout=timeout, system_prompt=system_prompt, mcps=mcps,
         )
         run_id = _generate_run_id()
         result = _run_with_semaphore(full_prompt, spec, run_id, "reducer")
