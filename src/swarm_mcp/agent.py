@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 
 from . import docker
 from .sandbox import SandboxSpec
+from .types import build_type_context
 
 logger = logging.getLogger(__name__)
 
@@ -118,10 +119,14 @@ def run_agent(prompt: str, spec: SandboxSpec, run_id: str, agent_id: str) -> Age
     output_dir = os.path.join("/tmp/swarm-mcp", run_id, agent_id)
     os.makedirs(output_dir, exist_ok=True)
 
+    # Inject type context into prompt if types are declared
+    type_context = build_type_context(spec.input_type, spec.output_type)
+    full_prompt = f"{type_context}\n\n{prompt}" if type_context else prompt
+
     # Write prompt to file for stdin piping
     prompt_file = os.path.join(output_dir, "prompt.txt")
     with open(prompt_file, "w") as f:
-        f.write(prompt)
+        f.write(full_prompt)
 
     # Generate minimal HOME with claude config for the container
     _setup_agent_home(output_dir, spec)

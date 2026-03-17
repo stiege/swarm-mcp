@@ -28,6 +28,10 @@ class SandboxSpec:
     effort: str | None = None
     max_budget: float | None = None
 
+    # Types (natural language contracts)
+    input_type: str | None = None
+    output_type: str | None = None
+
     # Filesystem
     mounts: list[dict] = field(default_factory=list)
     workdir: str = "/workspace"

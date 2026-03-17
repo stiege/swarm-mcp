@@ -10,6 +10,7 @@ from mcp.server.fastmcp import FastMCP
 from . import tools as response_tools
 from .agent import AgentResult, run_agent
 from .sandbox import SandboxSpec, list_sandboxes, load_sandbox, resolve_sandbox, save_sandbox
+from .types import build_validation_prompt, get_type, list_types as _list_types, resolve_type
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -191,6 +192,8 @@ def run(
     input_files: str | None = None,
     memory: str | None = None,
     cpus: float | None = None,
+    input_type: str | None = None,
+    output_type: str | None = None,
 ) -> str:
     """Run a single Claude agent in a Docker container. Returns the agent's text output and metadata.
 
@@ -212,6 +215,8 @@ def run(
         input_files: JSON object of files to inject: {"/path": "content"}.
         memory: Docker memory limit (e.g. "2g").
         cpus: Docker CPU limit (e.g. 2.0).
+        input_type: Natural language type describing what the agent receives (e.g. "research notes", "[code-review]").
+        output_type: Natural language type describing what the agent must produce (e.g. "[mcp-server] with [test-suite]").
     """
     try:
         spec = _resolve_spec(
@@ -219,7 +224,7 @@ def run(
             timeout=timeout, system_prompt=system_prompt, claude_md=claude_md,
             output_schema=output_schema, mcps=mcps, effort=effort,
             max_budget=max_budget, env_vars=env_vars, input_files=input_files,
-            memory=memory, cpus=cpus,
+            memory=memory, cpus=cpus, input_type=input_type, output_type=output_type,
         )
         run_id = _generate_run_id()
         result = _run_with_semaphore(prompt, spec, run_id, "agent-0")
@@ -734,6 +739,110 @@ def list_sandbox_specs() -> str:
     except Exception as e:
         logger.exception("list_sandbox_specs failed")
         return json.dumps(response_tools.error_response("list_error", str(e)))
+
+
+# ── Type System Tools ─────────────────────────────────────────────
+
+
+@mcp.tool()
+def list_type_registry() -> str:
+    """List all registered types from ~/.claude/types/."""
+    try:
+        types = _list_types()
+        return json.dumps(types)
+    except Exception as e:
+        logger.exception("list_type_registry failed")
+        return json.dumps(response_tools.error_response("list_error", str(e)))
+
+
+@mcp.tool()
+def get_type_definition(name: str, resolve_refs: bool = True) -> str:
+    """Get a type definition by name, optionally resolving [references] to other types.
+
+    Args:
+        name: Type name (e.g. "mcp-server", "tarball", "code-review").
+        resolve_refs: Whether to inline [referenced] types (default: true).
+    """
+    try:
+        content = get_type(name)
+        if content is None:
+            return json.dumps(response_tools.error_response("not_found", f"Type '{name}' not found in ~/.claude/types/"))
+        if resolve_refs:
+            content = resolve_type(content)
+        return json.dumps({"name": name, "definition": content})
+    except Exception as e:
+        logger.exception("get_type_definition failed")
+        return json.dumps(response_tools.error_response("get_error", str(e)))
+
+
+@mcp.tool()
+def validate(
+    artifact: str,
+    declared_type: str,
+    sandbox: str | None = None,
+    model: str = "sonnet",
+    timeout: int = 120,
+) -> str:
+    """Validate an artifact against a declared type. Runs a type-checker agent that inspects
+    the artifact and reports VALID/PARTIAL/INVALID with per-criterion results.
+
+    Use this after a pipeline step to verify the output matches expectations.
+    If validation fails, you know which agent to blame and can retry.
+
+    Args:
+        artifact: Description of what to validate — e.g. the agent's output text, a file path, or a ref {"ref": "run_id/agent_id"}.
+        declared_type: The type to validate against — either a type name (e.g. "mcp-server") or inline natural language description.
+        sandbox: Named sandbox spec or inline JSON for the validator agent.
+        model: Model for the validator (default: sonnet — needs to be good at analysis).
+        timeout: Timeout for the validation agent.
+    """
+    try:
+        # Resolve artifact if it's a ref
+        if artifact.startswith("{"):
+            ref_data = json.loads(artifact)
+            if "ref" in ref_data:
+                artifact = _resolve_ref(ref_data["ref"])
+
+        # Resolve type — check registry first, fall back to inline description
+        type_content = get_type(declared_type)
+        if type_content:
+            type_desc = declared_type  # use the name, build_validation_prompt will resolve
+        else:
+            type_desc = declared_type  # inline description
+
+        prompt = build_validation_prompt(artifact, type_desc)
+
+        spec = _resolve_spec(
+            sandbox, model=model, timeout=timeout,
+            tools="Read,Glob,Grep,Bash",  # validator may need to inspect files
+            network=True,
+        )
+        run_id = _generate_run_id()
+        result = _run_with_semaphore(prompt, spec, run_id, "validator")
+
+        # Parse verdict from output
+        verdict = "UNKNOWN"
+        if result.text:
+            for line in result.text.split("\n"):
+                line = line.strip()
+                if line in ("VALID", "PARTIAL", "INVALID"):
+                    verdict = line
+                    break
+                if line.startswith("VALID") or line.startswith("PARTIAL") or line.startswith("INVALID"):
+                    verdict = line.split()[0]
+                    break
+
+        data = {
+            "run_id": run_id,
+            "declared_type": declared_type,
+            "verdict": verdict,
+            "result": result.to_dict(),
+        }
+        return json.dumps(response_tools.truncate_response(data, f"validate_{run_id[:8]}"), default=str)
+
+    except Exception as e:
+        logger.exception("validate failed")
+        return json.dumps(response_tools.error_response("validate_error", str(e)))
 
 
 def main():
