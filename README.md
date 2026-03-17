@@ -1,3 +1,4 @@
+<!-- mcp-name: io.github.stiege/mcp-swarm -->
 # swarm-mcp
 
 **Orchestrate parallel Claude agent workloads via Docker containers.**

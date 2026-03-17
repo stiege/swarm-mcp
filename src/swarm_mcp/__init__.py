@@ -34,7 +34,7 @@ from .agent import AgentResult
 from .sandbox import SandboxSpec, list_sandboxes, load_sandbox, resolve_sandbox, save_sandbox
 from .registry import add_search_path, wrap_file, wrap_project
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     # Core types
