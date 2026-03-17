@@ -22,6 +22,11 @@ mcp = FastMCP("swarm-mcp")
 MAX_CONCURRENT = int(os.environ.get("SWARM_MAX_CONCURRENT", "10"))
 _semaphore = threading.Semaphore(MAX_CONCURRENT)
 
+# How long agents will wait in the queue for a resource (execution slot or named pool).
+# Separate from execution timeout — an agent waiting for the GPU shouldn't have its
+# run time shortened. Default 1 hour; override with SWARM_QUEUE_TIMEOUT.
+RESOURCE_QUEUE_TIMEOUT = int(os.environ.get("SWARM_QUEUE_TIMEOUT", "3600"))
+
 # Named resource pools — generic semaphores for shared resources.
 # Configured via SWARM_RESOURCE_<name>=<capacity> environment variables.
 # The "gpu" resource defaults to capacity 1 (only one agent uses the GPU at a time).
@@ -67,8 +72,13 @@ def _run_with_semaphore(prompt: str, spec: SandboxSpec, run_id: str, agent_id: s
     if spec.gpu and "gpu" not in resources:
         resources.append("gpu")
 
+    # Resource acquisition uses a separate queue timeout — agents wait
+    # indefinitely (up to RESOURCE_QUEUE_TIMEOUT) for shared resources
+    # like GPUs, then get their full execution timeout once running.
+    queue_timeout = RESOURCE_QUEUE_TIMEOUT
+
     # Acquire global execution slot
-    acquired = _semaphore.acquire(timeout=spec.timeout)
+    acquired = _semaphore.acquire(timeout=queue_timeout)
     if not acquired:
         return AgentResult(
             agent_id=agent_id,
@@ -78,16 +88,16 @@ def _run_with_semaphore(prompt: str, spec: SandboxSpec, run_id: str, agent_id: s
             cost_usd=None,
             model=spec.model,
             output_dir="",
-            error=f"Could not acquire execution slot within {spec.timeout}s (max concurrent: {MAX_CONCURRENT})",
+            error=f"Could not acquire execution slot within {queue_timeout}s (max concurrent: {MAX_CONCURRENT})",
         )
 
-    # Acquire named resource pools
+    # Acquire named resource pools — wait in queue, don't eat into execution time
     acquired_resources: list[str] = []
     try:
         for res in resources:
             pool = _get_resource_pool(res)
-            if not pool.acquire(timeout=spec.timeout):
-                # Release already-acquired resources and fail
+            logger.info("Agent %s/%s waiting for resource '%s'", run_id, agent_id, res)
+            if not pool.acquire(timeout=queue_timeout):
                 for acquired_res in acquired_resources:
                     _get_resource_pool(acquired_res).release()
                 _semaphore.release()
@@ -99,10 +109,12 @@ def _run_with_semaphore(prompt: str, spec: SandboxSpec, run_id: str, agent_id: s
                     cost_usd=None,
                     model=spec.model,
                     output_dir="",
-                    error=f"Could not acquire resource '{res}' within {spec.timeout}s",
+                    error=f"Could not acquire resource '{res}' within {queue_timeout}s",
                 )
             acquired_resources.append(res)
+            logger.info("Agent %s/%s acquired resource '%s'", run_id, agent_id, res)
 
+        # All resources acquired — agent gets its full execution timeout
         return run_agent(prompt, spec, run_id, agent_id)
     finally:
         for res in acquired_resources:
