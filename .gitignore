@@ -1,5 +1,35 @@
+# Python
 .venv/
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
 *.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# uv
 uv.lock
+
+# Binaries (copied to project root for Docker build context)
+uv
 claude
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+*.key
+*.pem
+
+# Temp
+*.tmp
