@@ -6,6 +6,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Docker Required](https://img.shields.io/badge/docker-required-blue)](https://docker.com)
+[![Documentation](https://img.shields.io/badge/docs-stiege.github.io%2Fswarm--mcp-informational)](https://stiege.github.io/swarm-mcp/)
 
 swarm-mcp is an MCP server that lets your Claude session spawn other Claude agents — each in an isolated Docker container — and compose their results using functional combinators. Instead of one agent doing everything, you describe the work as `run`, `par`, `map`, `chain`, `reduce`, and `pipeline` calls, and swarm-mcp handles container lifecycle, resource scheduling, and result plumbing. The agent outputs are lazy refs (metadata on the wire, text on disk) so you never blow up the MCP protocol with megabytes of agent output.
 
@@ -31,68 +32,37 @@ swarm-mcp is an MCP server that lets your Claude session spawn other Claude agen
 
 ## Architecture
 
-```
-                          swarm-mcp server
-                     ┌──────────────────────────┐
-                     │                           │
-  Claude ──MCP──────►│  run() / par() / map()    │
-  session            │         │                 │
-                     │         ▼                 │
-                     │  ┌─────────────┐          │
-                     │  │  Semaphore   │ ◄── SWARM_MAX_CONCURRENT
-                     │  │  + Resource  │ ◄── SWARM_RESOURCE_gpu=1
-                     │  │    Pools     │          │
-                     │  └──────┬──────┘          │
-                     │         │                 │
-                     │         ▼                 │
-                     │  ┌─────────────┐          │
-                     │  │ Docker API  │          │
-                     │  └──────┬──────┘          │
-                     └─────────┼──────────────────┘
-                               │
-              ┌────────────────┼────────────────┐
-              ▼                ▼                 ▼
-     ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-     │  Container 0  │ │  Container 1  │ │  Container 2  │
-     │  claude --    │ │  claude --    │ │  claude --    │
-     │  model sonnet │ │  model opus   │ │  model haiku  │
-     │  /workspace   │ │  /workspace   │ │  /workspace   │
-     └──────┬───────┘ └──────┬───────┘ └──────┬───────┘
-            │                │                 │
-            ▼                ▼                 ▼
-     /tmp/swarm-mcp/  /tmp/swarm-mcp/  /tmp/swarm-mcp/
-      {run}/{agent-0}  {run}/{agent-1}  {run}/{agent-2}
-       └─ result.json   └─ result.json   └─ result.json
-       └─ stream.jsonl   └─ stream.jsonl  └─ stream.jsonl
-       └─ artifacts.jsonl └─ artifacts.jsonl
+```mermaid
+flowchart TB
+    Claude["Claude Code<br/>(your session)"] -- "MCP" --> Server["swarm-mcp server<br/>run · par · map · chain · pipeline"]
+    Server --> Pools["Semaphore + Resource Pools<br/>SWARM_MAX_CONCURRENT · SWARM_RESOURCE_gpu"]
+    Pools --> Docker["Docker API"]
+    Docker --> C0["Container 0<br/>claude --model sonnet"]
+    Docker --> C1["Container 1<br/>claude --model opus"]
+    Docker --> CN["Container N<br/>claude --model haiku"]
+    C0 & C1 & CN --> Out["&nbsp;/tmp/swarm-mcp/{run}/{agent}/<br/>result.json · stream.jsonl · artifacts.jsonl"]
+    Out -- "unwrap()" --> Text["output.md"]
 ```
 
 ### Ref flow
 
-```
-run("Review this code")
-  │
-  ▼
-{ "ref": "a1b2c3/agent-0",     ◄── metadata only, no text
-  "exit_code": 0,
-  "duration_seconds": 34.2,
-  "cost_usd": 0.03,
-  "model": "sonnet" }
-  │
-  ├── unwrap("a1b2c3/agent-0")  ──► writes /tmp/swarm-mcp/a1b2c3/agent-0/output.md
-  │                                  returns { "file": "...", "size": 4821 }
-  │
-  └── inspect("a1b2c3/agent-0") ──► writes inspect.md with debug report
+```mermaid
+flowchart LR
+    A["run('Review code')"] --> R["ref: a1b2c3/agent-0<br/>exit_code: 0 · cost: $0.03<br/><i>metadata only — no text yet</i>"]
+    R -- "unwrap()" --> F["/tmp/.../output.md"]
+    R -- "inspect()" --> D["inspect.md<br/>debug report"]
+    R -- "reduce([r1,r2,r3])" --> S["synthesis ref"]
 ```
 
 ### Combinator composition
 
-```
-par(3 tasks) ──► 3 refs ──► reduce(refs, "Synthesize") ──► 1 ref ──► unwrap ──► text
+```mermaid
+flowchart LR
+    P["par(3 tasks)"] --> R3["3 refs"]
+    R3 --> Re["reduce('Synthesise')"] --> Final["1 ref"] --> U["unwrap → text"]
 
-map("{input}", 5 inputs) ──► 5 refs ──► filter(refs, "code-review") ──► valid refs only
-
-run() ──► ref ──► encrypt(ref) ──► encrypted ref ──► decrypt(ref, key_id) ──► text
+    M["map(template, 5 inputs)"] --> R5["5 refs"]
+    R5 --> Fi["filter('code-review')"] --> V["valid refs only"]
 ```
 
 ---
@@ -132,19 +102,15 @@ Add to your Claude settings (`~/.claude.json` or project `.claude.json`):
 
 ### Build the Docker image
 
-The agent containers need a Docker image with Claude CLI and uv baked in. Copy the `claude` and `uv` binaries into the project root, then build:
+The agent containers need a Docker image with Claude CLI and uv baked in. Clone the repo and build:
 
 ```bash
-cd /path/to/swarm-mcp
-
-# Copy binaries (adjust paths for your system)
-cp "$(which claude)" ./claude
-cp "$(which uv)" ./uv
-
+git clone https://github.com/stiege/swarm-mcp
+cd swarm-mcp
 docker build -t swarm-agent .
 ```
 
-The image is based on Ubuntu 24.04 with git, Python 3, and jq. It auto-builds on first use if missing, but pre-building avoids the startup delay.
+The Dockerfile installs Claude Code CLI and uv from their official sources during the build — no binaries to copy. The image is based on Ubuntu 24.04 with git, Python 3, and jq. It auto-builds on first use if missing, but pre-building avoids the startup delay.
 
 ---
 
