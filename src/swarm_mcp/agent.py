@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -7,6 +8,7 @@ import time
 from dataclasses import asdict, dataclass
 
 from . import docker
+from .monads import enrich_ref
 from .sandbox import SandboxSpec
 from .types import build_type_context
 
@@ -27,9 +29,9 @@ class AgentResult:
     def to_dict(self) -> dict:
         return asdict(self)
 
-    def to_ref_dict(self, run_id: str) -> dict:
-        """Return metadata + ref, without text. The proper monadic wrapper."""
-        return {
+    def to_ref_dict(self, run_id: str, **monadic_context) -> dict:
+        """Return metadata + ref + monadic fields, without text."""
+        ref = {
             "agent_id": self.agent_id,
             "ref": f"{run_id}/{self.agent_id}",
             "exit_code": self.exit_code,
@@ -39,6 +41,10 @@ class AgentResult:
             "output_dir": self.output_dir,
             "error": self.error,
         }
+        # Apply monadic enrichment if context provided
+        if monadic_context:
+            enrich_ref(ref, run_id, text=self.text, **monadic_context)
+        return ref
 
 
 _CLAUDE_SUBDIRS = [

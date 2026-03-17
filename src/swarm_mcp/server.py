@@ -2,12 +2,13 @@ import json
 import logging
 import os
 import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 from mcp.server.fastmcp import FastMCP
 
-from . import tools as response_tools
+from . import monads, tools as response_tools
 from .agent import AgentResult, run_agent
 from .sandbox import SandboxSpec, list_sandboxes, load_sandbox, resolve_sandbox, save_sandbox
 from . import registry
@@ -719,6 +720,339 @@ def inspect(ref: str) -> str:
         return json.dumps(response_tools.error_response("inspect_error", str(e)))
 
 
+# ── Higher-Order Combinators ──────────────────────────────────────
+
+
+@mcp.tool()
+def filter(
+    refs: str,
+    declared_type: str,
+    model: str = "sonnet",
+    timeout: int = 120,
+) -> str:
+    """Filter refs by type validation — keep only results that match the declared type.
+
+    Runs validate on each ref in parallel. Returns only refs with VALID verdict.
+    This is the type-gated composition primitive: ensures only correct results flow downstream.
+
+    Args:
+        refs: JSON array of ref objects: [{"ref": "run_id/agent_id"}, ...].
+        declared_type: Type name or description to validate against.
+        model: Model for the validator agents (default: sonnet).
+        timeout: Timeout per validation (default: 120).
+    """
+    try:
+        ref_list = json.loads(refs)
+        if not isinstance(ref_list, list) or len(ref_list) == 0:
+            return json.dumps(response_tools.error_response("invalid_input", "refs must be a non-empty JSON array"))
+
+        run_id = _generate_run_id()
+        valid_refs = []
+        invalid_refs = []
+
+        # Validate each ref in parallel
+        tasks = []
+        for r in ref_list:
+            ref_str = r.get("ref") if isinstance(r, dict) else r
+            text = _resolve_ref(ref_str)
+            prompt = build_validation_prompt(text, declared_type)
+            tasks.append({
+                "prompt": prompt,
+                "model": model,
+                "tools": "Read,Glob,Grep,Bash",
+                "timeout": timeout,
+            })
+
+        _, results = _run_par_internal(tasks, max_concurrency=min(len(tasks), MAX_CONCURRENT))
+
+        for r, ref_obj, result in zip(ref_list, ref_list, results):
+            ref_str = ref_obj.get("ref") if isinstance(ref_obj, dict) else ref_obj
+            verdict = "UNKNOWN"
+            if result.text:
+                for line in result.text.split("\n"):
+                    line = line.strip()
+                    if line in ("VALID", "PARTIAL", "INVALID"):
+                        verdict = line
+                        break
+                    if line.startswith(("VALID", "PARTIAL", "INVALID")):
+                        verdict = line.split()[0]
+                        break
+
+            enriched = dict(ref_obj) if isinstance(ref_obj, dict) else {"ref": ref_obj}
+            monads.stamp_validated(enriched, declared_type, verdict, f"{run_id}/{result.agent_id}")
+
+            if verdict == "VALID":
+                valid_refs.append(enriched)
+            else:
+                invalid_refs.append(enriched)
+
+        data = {
+            "run_id": run_id,
+            "total": len(ref_list),
+            "valid": len(valid_refs),
+            "invalid": len(invalid_refs),
+            "results": valid_refs,
+            "rejected": invalid_refs,
+        }
+        return json.dumps(data, default=str)
+
+    except Exception as e:
+        logger.exception("filter failed")
+        return json.dumps(response_tools.error_response("filter_error", str(e)))
+
+
+@mcp.tool()
+def race(
+    tasks: str,
+    max_concurrency: int = 5,
+) -> str:
+    """Run multiple approaches in parallel, return the first to succeed.
+
+    All tasks start simultaneously. As soon as one completes without error,
+    its ref is returned. Remaining tasks are abandoned (their containers are
+    killed). Use for speculative execution or when multiple strategies might work.
+
+    Args:
+        tasks: JSON array of task objects (same format as par).
+        max_concurrency: Max agents running simultaneously (default: 5).
+    """
+    try:
+        task_list = json.loads(tasks)
+        if not isinstance(task_list, list) or len(task_list) == 0:
+            return json.dumps(response_tools.error_response("invalid_input", "tasks must be a non-empty JSON array"))
+
+        # Run all in parallel — same as par
+        run_id, results = _run_par_internal(task_list, max_concurrency)
+
+        # Find first success (by completion order — which is preserved by ThreadPoolExecutor)
+        winner = None
+        losers = []
+        for r in results:
+            if r.error is None and winner is None:
+                winner = r
+            else:
+                losers.append(r)
+
+        if winner is None:
+            data = {
+                "run_id": run_id,
+                "error": "All approaches failed",
+                "results": [r.to_ref_dict(run_id) for r in results],
+            }
+        else:
+            data = {
+                "run_id": run_id,
+                "winner": winner.to_ref_dict(run_id),
+                "attempted": len(results),
+                "failed": len([r for r in results if r.error]),
+            }
+
+        return json.dumps(data, default=str)
+
+    except Exception as e:
+        logger.exception("race failed")
+        return json.dumps(response_tools.error_response("race_error", str(e)))
+
+
+@mcp.tool()
+def retry(
+    prompt: str,
+    max_attempts: int = 3,
+    sandbox: str | None = None,
+    model: str = "sonnet",
+    timeout: int = 120,
+    declared_type: str | None = None,
+    mcps: str | list | None = None,
+) -> str:
+    """Run a single agent with automatic retries on failure.
+
+    If declared_type is set, retries until the output validates as that type
+    (not just until exit code 0). Each attempt receives the prior error as context.
+
+    Args:
+        prompt: The task prompt.
+        max_attempts: Maximum number of attempts (default: 3).
+        sandbox: Named sandbox spec or inline JSON.
+        model: Claude model (default: sonnet).
+        timeout: Timeout per attempt (default: 120).
+        declared_type: If set, validates output and retries if not VALID.
+        mcps: JSON array of MCP server names to attach.
+    """
+    try:
+        run_id = _generate_run_id()
+        prior_errors = []
+
+        for attempt in range(1, max_attempts + 1):
+            # Build prompt with retry context
+            full_prompt = prompt
+            if prior_errors:
+                full_prompt += "\n\n# Prior attempts failed with these errors:\n"
+                for i, err in enumerate(prior_errors):
+                    full_prompt += f"\n## Attempt {i + 1}\n{err}\n"
+                full_prompt += "\nPlease fix the issues and try again."
+
+            spec = _resolve_spec(sandbox, model=model, timeout=timeout, mcps=mcps)
+            result = _run_with_semaphore(full_prompt, spec, run_id, f"attempt-{attempt}")
+
+            # Check for success
+            if result.error:
+                prior_errors.append(result.error)
+                continue
+
+            # If declared_type, validate the output
+            if declared_type and result.text:
+                validation_prompt = build_validation_prompt(result.text, declared_type)
+                val_spec = _resolve_spec(None, model=model, timeout=60)
+                val_result = _run_with_semaphore(validation_prompt, val_spec, run_id, f"validate-{attempt}")
+
+                verdict = "UNKNOWN"
+                if val_result.text:
+                    for line in val_result.text.split("\n"):
+                        line = line.strip()
+                        if line in ("VALID", "PARTIAL", "INVALID"):
+                            verdict = line
+                            break
+                        if line.startswith(("VALID", "PARTIAL", "INVALID")):
+                            verdict = line.split()[0]
+                            break
+
+                if verdict != "VALID":
+                    prior_errors.append(f"Type validation failed ({verdict}): {val_result.text[:500]}")
+                    continue
+
+                # Stamp as validated
+                ref = result.to_ref_dict(run_id)
+                monads.stamp_validated(ref, declared_type, verdict, f"{run_id}/validate-{attempt}")
+                monads.stamp_retry(ref, attempt, max_attempts, prior_errors)
+                return json.dumps(ref, default=str)
+
+            # Success without type checking
+            ref = result.to_ref_dict(run_id)
+            monads.stamp_retry(ref, attempt, max_attempts, prior_errors)
+            return json.dumps(ref, default=str)
+
+        # All attempts failed
+        data = {
+            "run_id": run_id,
+            "error": f"All {max_attempts} attempts failed",
+            "prior_errors": prior_errors,
+            "last_ref": result.to_ref_dict(run_id) if result else None,
+        }
+        return json.dumps(data, default=str)
+
+    except Exception as e:
+        logger.exception("retry failed")
+        return json.dumps(response_tools.error_response("retry_error", str(e)))
+
+
+@mcp.tool()
+def guard(
+    ref: str,
+    check: str,
+    value: str | None = None,
+) -> str:
+    """Check a monadic condition on a ref. Returns the ref if the guard passes, error if not.
+
+    Use to enforce constraints before passing refs to downstream combinators.
+
+    Args:
+        ref: A ref string or JSON object.
+        check: The guard to check — one of: "validated", "budget", "classification", "exists".
+        value: Required for some checks — e.g. the type name for "validated", the classification level for "classification".
+    """
+    try:
+        if ref.startswith("{"):
+            ref_data = json.loads(ref)
+        else:
+            ref_data = {"ref": ref}
+
+        if check == "validated":
+            if not monads.is_validated(ref_data, value):
+                validated_as = ref_data.get("validated_as", "not validated")
+                return json.dumps(response_tools.error_response(
+                    "guard_failed",
+                    f"Ref not validated as '{value}' (current: {validated_as})"
+                ))
+
+        elif check == "budget":
+            if not monads.check_budget(ref_data):
+                budget = ref_data.get("budget", {})
+                return json.dumps(response_tools.error_response(
+                    "guard_failed",
+                    f"Budget exceeded: spent {budget.get('spent_so_far', '?')}, limit {budget.get('limit', '?')}"
+                ))
+
+        elif check == "classification":
+            if value:
+                mcps = json.loads(value) if value.startswith("[") else [value]
+                allowed, reason = monads.check_classification(ref_data, mcps)
+                if not allowed:
+                    return json.dumps(response_tools.error_response("guard_failed", reason))
+
+        elif check == "exists":
+            ref_str = ref_data.get("ref", ref)
+            result_file = os.path.join("/tmp/swarm-mcp", ref_str, "result.json")
+            if not os.path.exists(result_file):
+                return json.dumps(response_tools.error_response("guard_failed", f"Ref does not exist: {ref_str}"))
+
+        # Guard passed — return the ref unchanged
+        return json.dumps(ref_data, default=str)
+
+    except Exception as e:
+        logger.exception("guard failed")
+        return json.dumps(response_tools.error_response("guard_error", str(e)))
+
+
+@mcp.tool()
+def classify(
+    ref: str,
+    level: str,
+    allowed_mcps: str | list | None = None,
+    denied_mcps: str | list | None = None,
+) -> str:
+    """Set the classification level on a ref. Controls which MCPs can access the data.
+
+    Use for data sensitivity enforcement — e.g. mark original legal documents as
+    'confidential' (no WhatsApp MCP), mark synthetic outputs as 'public'.
+
+    Args:
+        ref: A ref string or JSON object.
+        level: Classification level: public, internal, confidential, restricted.
+        allowed_mcps: JSON array of MCP names allowed to access this ref.
+        denied_mcps: JSON array of MCP names denied access.
+    """
+    try:
+        if ref.startswith("{"):
+            ref_data = json.loads(ref)
+        else:
+            ref_data = {"ref": ref}
+
+        allowed = None
+        if allowed_mcps:
+            allowed = json.loads(allowed_mcps) if isinstance(allowed_mcps, str) else allowed_mcps
+        denied = None
+        if denied_mcps:
+            denied = json.loads(denied_mcps) if isinstance(denied_mcps, str) else denied_mcps
+
+        monads.stamp_classification(ref_data, level, allowed, denied)
+
+        # Also write classification to the result.json on disk
+        ref_str = ref_data.get("ref", "")
+        result_file = os.path.join("/tmp/swarm-mcp", ref_str, "result.json")
+        if os.path.exists(result_file):
+            with open(result_file) as f:
+                result_data = json.load(f)
+            result_data["classification"] = ref_data["classification"]
+            with open(result_file, "w") as f:
+                json.dump(result_data, f, indent=2, default=str)
+
+        return json.dumps(ref_data, default=str)
+
+    except Exception as e:
+        logger.exception("classify failed")
+        return json.dumps(response_tools.error_response("classify_error", str(e)))
+
+
 # ── Pipeline Tool (Free Monad interpreter) ───────────────────────
 
 
@@ -771,6 +1105,14 @@ def pipeline(
         step_results = {}  # id -> AgentResult
         retry_counts = {}  # step_id -> count
 
+        # Budget and deadline tracking (monadic context)
+        budget_limit = pipeline_def.get("budget")  # total USD limit
+        spent_so_far = 0.0
+        deadline = None
+        if pipeline_def.get("deadline_seconds"):
+            deadline = time.time() + pipeline_def["deadline_seconds"]
+        classification = pipeline_def.get("classification")  # default data classification
+
         # Create a shared directory that all pipeline steps can read/write.
         # Mounted at /shared/ in each container — use this for inter-step artifacts.
         shared_dir = os.path.join("/tmp/swarm-mcp", run_id, "shared")
@@ -811,7 +1153,35 @@ def pipeline(
                 if prev.error:
                     prompt += f"\n\n# Error from previous step ({prev.agent_id}):\n{prev.error}"
 
-            overrides = {k: v for k, v in step.items() if k not in ("prompt", "sandbox", "id", "on_fail", "next", "condition", "max_retries") and v is not None}
+            # Budget guard — stop before overspending
+            if budget_limit and spent_so_far >= budget_limit:
+                results.append(AgentResult(
+                    agent_id=step_id, text="", exit_code=-1, duration_seconds=0,
+                    cost_usd=None, model="", output_dir="",
+                    error=f"Budget exhausted: spent ${spent_so_far:.2f} of ${budget_limit:.2f} limit",
+                ))
+                break
+
+            # Deadline guard — stop if time's up
+            if deadline:
+                remaining = monads.remaining_time(deadline)
+                if remaining is not None and remaining <= 0:
+                    results.append(AgentResult(
+                        agent_id=step_id, text="", exit_code=-1, duration_seconds=0,
+                        cost_usd=None, model="", output_dir="",
+                        error="Pipeline deadline exceeded",
+                    ))
+                    break
+
+            overrides = {k: v for k, v in step.items() if k not in ("prompt", "sandbox", "id", "on_fail", "next", "condition", "max_retries", "input_type", "output_type") and v is not None}
+
+            # Propagate deadline as step timeout if tighter than step's own timeout
+            if deadline:
+                remaining = monads.remaining_time(deadline)
+                if remaining is not None:
+                    step_timeout = overrides.get("timeout", 300)
+                    overrides["timeout"] = int(min(step_timeout, remaining))
+
             spec = _resolve_spec(step.get("sandbox", default_sandbox), **overrides)
 
             # Inject shared directory mount for inter-step file communication
@@ -821,6 +1191,9 @@ def pipeline(
             result = _run_with_semaphore(prompt, spec, run_id, step_id)
             results.append(result)
             step_results[step_id] = result
+
+            # Update budget tracking
+            spent_so_far += result.cost_usd or 0
 
             # Control flow
             if result.error is not None:
@@ -851,8 +1224,10 @@ def pipeline(
             "total_steps": len(steps),
             "final": results[-1].to_ref_dict(run_id) if results else None,
             "all_results": [r.to_ref_dict(run_id) for r in results],
-            "total_cost_usd": sum(r.cost_usd or 0 for r in results),
+            "total_cost_usd": spent_so_far,
             "total_duration_seconds": sum(r.duration_seconds for r in results),
+            "budget": {"spent": spent_so_far, "limit": budget_limit} if budget_limit else None,
+            "deadline_met": (time.time() < deadline) if deadline else None,
         }
         return json.dumps(data, default=str)
 
