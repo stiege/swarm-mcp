@@ -27,6 +27,19 @@ class AgentResult:
     def to_dict(self) -> dict:
         return asdict(self)
 
+    def to_ref_dict(self, run_id: str) -> dict:
+        """Return metadata + ref, without text. The proper monadic wrapper."""
+        return {
+            "agent_id": self.agent_id,
+            "ref": f"{run_id}/{self.agent_id}",
+            "exit_code": self.exit_code,
+            "duration_seconds": self.duration_seconds,
+            "cost_usd": self.cost_usd,
+            "model": self.model,
+            "output_dir": self.output_dir,
+            "error": self.error,
+        }
+
 
 _CLAUDE_SUBDIRS = [
     "backups", "cache", "debug", "downloads", "file-history",

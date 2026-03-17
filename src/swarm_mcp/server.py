@@ -228,7 +228,7 @@ def run(
         )
         run_id = _generate_run_id()
         result = _run_with_semaphore(prompt, spec, run_id, "agent-0")
-        return json.dumps(response_tools.truncate_response(result.to_dict(), f"run_{run_id[:8]}"), default=str)
+        return json.dumps(result.to_ref_dict(run_id), default=str)
     except Exception as e:
         logger.exception("run failed")
         return json.dumps(response_tools.error_response("run_error", str(e)))
@@ -257,10 +257,9 @@ def par(
             "total": len(results),
             "succeeded": sum(1 for r in results if r.error is None),
             "failed": sum(1 for r in results if r.error is not None),
-            "results": [r.to_dict() for r in results],
-            "refs": [{"ref": f"{run_id}/{r.agent_id}"} for r in results if r.error is None],
+            "results": [r.to_ref_dict(run_id) for r in results],
         }
-        return json.dumps(response_tools.truncate_response(data, f"par_{run_id[:8]}"), default=str)
+        return json.dumps(data, default=str)
 
     except json.JSONDecodeError as e:
         return json.dumps(response_tools.error_response("json_error", f"Failed to parse tasks JSON: {e}"))
@@ -371,7 +370,7 @@ def chain(
             )
 
             result = _run_with_semaphore(prompt, spec, run_id, f"stage-{i}")
-            intermediates.append(result.to_dict())
+            intermediates.append(result.to_ref_dict(run_id))
 
             if result.error is not None:
                 data = {
@@ -381,7 +380,7 @@ def chain(
                     "error": f"Stage {i} failed: {result.error}",
                     "intermediates": intermediates,
                 }
-                return json.dumps(response_tools.truncate_response(data, f"chain_{run_id[:8]}"), default=str)
+                return json.dumps(data, default=str)
 
             previous_text = result.text
 
@@ -392,7 +391,7 @@ def chain(
             "final": intermediates[-1],
             "intermediates": intermediates,
         }
-        return json.dumps(response_tools.truncate_response(data, f"chain_{run_id[:8]}"), default=str)
+        return json.dumps(data, default=str)
 
     except json.JSONDecodeError as e:
         return json.dumps(response_tools.error_response("json_error", f"Failed to parse stages JSON: {e}"))
@@ -448,9 +447,9 @@ def reduce(
         data = {
             "run_id": run_id,
             "input_count": len(texts),
-            "result": result.to_dict(),
+            "result": result.to_ref_dict(run_id),
         }
-        return json.dumps(response_tools.truncate_response(data, f"reduce_{run_id[:8]}"), default=str)
+        return json.dumps(data, default=str)
 
     except json.JSONDecodeError as e:
         return json.dumps(response_tools.error_response("json_error", f"Failed to parse results JSON: {e}"))
@@ -527,9 +526,9 @@ def map_reduce(
                 "run_id": map_run_id,
                 "phase": "map",
                 "error": "All map agents failed",
-                "results": [r.to_dict() for r in map_results],
+                "results": [r.to_ref_dict(map_run_id) for r in map_results],
             }
-            return json.dumps(response_tools.truncate_response(data, f"map_reduce_{map_run_id[:8]}"), default=str)
+            return json.dumps(data, default=str)
 
         texts = [r.text for r in succeeded]
         sections = []
@@ -550,18 +549,58 @@ def map_reduce(
             "map_total": len(map_results),
             "map_succeeded": len(succeeded),
             "map_failed": len(failed),
-            "result": reduce_result.to_dict(),
+            "result": reduce_result.to_ref_dict(map_run_id),
         }
         if failed:
             data["map_errors"] = [{"agent_id": r.agent_id, "error": r.error} for r in failed]
 
-        return json.dumps(response_tools.truncate_response(data, f"map_reduce_{map_run_id[:8]}"), default=str)
+        return json.dumps(data, default=str)
 
     except json.JSONDecodeError as e:
         return json.dumps(response_tools.error_response("json_error", f"Failed to parse JSON: {e}"))
     except Exception as e:
         logger.exception("map_reduce failed")
         return json.dumps(response_tools.error_response("map_reduce_error", str(e)))
+
+
+# ── Unwrap (monadic extract) ──────────────────────────────────────
+
+
+@mcp.tool()
+def unwrap(ref: str) -> str:
+    """Unwrap an agent result ref — writes the full text to a file and returns the path.
+
+    All combinators return refs (metadata without text). Use unwrap to
+    extract the text when you need it. The text is written to a .md file
+    alongside the result, so you can Read() it, Grep it, or pass it to
+    other tools without bloating the MCP protocol.
+
+    Args:
+        ref: A ref string like "run_id/agent_id", or a JSON object with a "ref" field.
+    """
+    try:
+        if ref.startswith("{"):
+            ref_data = json.loads(ref)
+            ref = ref_data.get("ref", ref)
+
+        text = _resolve_ref(ref)
+
+        # Write to a file so the caller can Read() it
+        output_path = os.path.join("/tmp/swarm-mcp", ref, "output.md")
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, "w") as f:
+            f.write(text)
+
+        return json.dumps({
+            "ref": ref,
+            "file": output_path,
+            "size": len(text),
+        })
+    except FileNotFoundError:
+        return json.dumps(response_tools.error_response("not_found", f"No result found for ref: {ref}"))
+    except Exception as e:
+        logger.exception("unwrap failed")
+        return json.dumps(response_tools.error_response("unwrap_error", str(e)))
 
 
 # ── Pipeline Tool (Free Monad interpreter) ───────────────────────
@@ -695,12 +734,12 @@ def pipeline(
             "run_id": run_id,
             "steps_executed": len(results),
             "total_steps": len(steps),
-            "final": results[-1].to_dict() if results else None,
-            "all_results": [r.to_dict() for r in results],
+            "final": results[-1].to_ref_dict(run_id) if results else None,
+            "all_results": [r.to_ref_dict(run_id) for r in results],
             "total_cost_usd": sum(r.cost_usd or 0 for r in results),
             "total_duration_seconds": sum(r.duration_seconds for r in results),
         }
-        return json.dumps(response_tools.truncate_response(data, f"pipeline_{run_id[:8]}"), default=str)
+        return json.dumps(data, default=str)
 
     except json.JSONDecodeError as e:
         return json.dumps(response_tools.error_response("json_error", f"Failed to parse pipeline: {e}"))
