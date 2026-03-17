@@ -90,35 +90,54 @@ def _resolve_spec(sandbox: str | None, **kwargs) -> SandboxSpec:
     if tools_str:
         tools_list = [t.strip() for t in tools_str.split(",") if t.strip()]
 
-    # Parse mounts from JSON string
-    mounts_str = kwargs.pop("mounts", None)
+    # Parse mounts from JSON string or list
+    mounts_raw = kwargs.pop("mounts", None)
     mounts_list = None
-    if mounts_str:
-        mounts_list = json.loads(mounts_str) if isinstance(mounts_str, str) else mounts_str
+    if mounts_raw:
+        if isinstance(mounts_raw, list):
+            mounts_list = mounts_raw
+        elif isinstance(mounts_raw, str):
+            mounts_list = json.loads(mounts_raw)
+        else:
+            mounts_list = list(mounts_raw)
 
-    # Parse mcps from JSON string
-    mcps_str = kwargs.pop("mcps", None)
+    # Parse mcps from JSON string or list
+    mcps_raw = kwargs.pop("mcps", None)
     mcps_list = None
-    if mcps_str:
-        mcps_list = json.loads(mcps_str) if isinstance(mcps_str, str) else mcps_str
+    if mcps_raw:
+        if isinstance(mcps_raw, list):
+            mcps_list = mcps_raw
+        elif isinstance(mcps_raw, str):
+            mcps_list = json.loads(mcps_raw)
+        else:
+            mcps_list = list(mcps_raw)
 
-    # Parse input_files from JSON string
-    input_files_str = kwargs.pop("input_files", None)
+    # Parse input_files from JSON string or dict
+    input_files_raw = kwargs.pop("input_files", None)
     input_files_dict = None
-    if input_files_str:
-        input_files_dict = json.loads(input_files_str) if isinstance(input_files_str, str) else input_files_str
+    if input_files_raw:
+        if isinstance(input_files_raw, dict):
+            input_files_dict = input_files_raw
+        elif isinstance(input_files_raw, str):
+            input_files_dict = json.loads(input_files_raw)
 
-    # Parse output_schema from JSON string
-    schema_str = kwargs.pop("output_schema", None)
+    # Parse output_schema from JSON string or dict
+    schema_raw = kwargs.pop("output_schema", None)
     schema_dict = None
-    if schema_str:
-        schema_dict = json.loads(schema_str) if isinstance(schema_str, str) else schema_str
+    if schema_raw:
+        if isinstance(schema_raw, dict):
+            schema_dict = schema_raw
+        elif isinstance(schema_raw, str):
+            schema_dict = json.loads(schema_raw)
 
-    # Parse env_vars from JSON string
-    env_str = kwargs.pop("env_vars", None)
+    # Parse env_vars from JSON string or dict
+    env_raw = kwargs.pop("env_vars", None)
     env_dict = None
-    if env_str:
-        env_dict = json.loads(env_str) if isinstance(env_str, str) else env_str
+    if env_raw:
+        if isinstance(env_raw, dict):
+            env_dict = env_raw
+        elif isinstance(env_raw, str):
+            env_dict = json.loads(env_raw)
 
     overrides = {k: v for k, v in kwargs.items() if v is not None}
     if tools_list is not None:
@@ -170,7 +189,7 @@ def run(
     system_prompt: str | None = None,
     claude_md: str | None = None,
     output_schema: str | None = None,
-    mcps: str | None = None,
+    mcps: str | list | None = None,
     effort: str | None = None,
     max_budget: float | None = None,
     env_vars: str | None = None,
@@ -266,7 +285,7 @@ def map(
     system_prompt: str | None = None,
     claude_md: str | None = None,
     output_schema: str | None = None,
-    mcps: str | None = None,
+    mcps: str | list | None = None,
     effort: str | None = None,
 ) -> str:
     """Apply a prompt template to each input in parallel. Use {input} as the placeholder.
@@ -447,7 +466,7 @@ def map_reduce(
     system_prompt: str | None = None,
     reduce_system_prompt: str | None = None,
     output_schema: str | None = None,
-    mcps: str | None = None,
+    mcps: str | list | None = None,
     effort: str | None = None,
 ) -> str:
     """Map a prompt over inputs in parallel, then reduce results into one — all in a single call.
