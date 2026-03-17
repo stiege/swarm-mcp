@@ -1309,6 +1309,7 @@ def decrypt(ref: str, key_id: str) -> str:
 @mcp.tool()
 def pipeline(
     definition: str,
+    resume: str | None = None,
 ) -> str:
     """Execute a pipeline — a sequence of steps with conditions and loops.
     This is the free monad interpreter: the pipeline definition is data, this tool evaluates it.
@@ -1329,10 +1330,15 @@ def pipeline(
     }
 
     Step fields: prompt (required), plus any sandbox fields (model, tools, system_prompt, etc.).
-    Control flow: on_fail (jump to step id on error), next (jump after success), condition ("prev.error" = only run if previous failed), max_retries.
+    Control flow: on_fail (jump to step id on error), next (jump after success),
+    condition ("prev.error" = only run if previous failed), max_retries,
+    retry_if ({target_step: keyword} — jump if output contains keyword).
 
     Args:
         definition: Pipeline name (loaded from ~/.claude/pipelines/<name>.json) or inline JSON definition.
+        resume: Resume a previous run. Format: "run_id" or "run_id/step_id". Reuses the shared directory
+                from the previous run. If step_id is given, skips to that step. If only run_id, resumes
+                from the step that failed.
     """
     try:
         # Load pipeline definition
@@ -1350,10 +1356,23 @@ def pipeline(
             return json.dumps(response_tools.error_response("invalid_input", "Pipeline has no steps"))
 
         default_sandbox = pipeline_def.get("sandbox")
-        run_id = _generate_run_id()
         results = []
         step_results = {}  # id -> AgentResult
         retry_counts = {}  # step_id -> count
+
+        # Resume support: reuse existing run's shared directory (and optionally skip to a step).
+        # - resume="run_id" → reuse shared dir, start from beginning (artifacts from prior run available)
+        # - resume="run_id/step_id" → reuse shared dir, skip to that step
+        resume_step_id = None
+        if resume:
+            parts = resume.split("/", 1)
+            run_id = parts[0]
+            if len(parts) > 1:
+                resume_step_id = parts[1]
+            logger.info("Resuming pipeline run %s%s", run_id,
+                        f" from step '{resume_step_id}'" if resume_step_id else " (full re-run with existing shared dir)")
+        else:
+            run_id = _generate_run_id()
 
         # Budget and deadline tracking (monadic context)
         budget_limit = pipeline_def.get("budget")  # total USD limit
@@ -1363,13 +1382,19 @@ def pipeline(
             deadline = time.time() + pipeline_def["deadline_seconds"]
         classification = pipeline_def.get("classification")  # default data classification
 
-        # Create a shared directory that all pipeline steps can read/write.
-        # Mounted at /shared/ in each container — use this for inter-step artifacts.
+        # Create or reuse shared directory for inter-step artifacts.
         shared_dir = os.path.join("/tmp/swarm-mcp", run_id, "shared")
         os.makedirs(shared_dir, exist_ok=True)
         logger.info("Pipeline %s shared dir: %s", run_id, shared_dir)
 
+        # Skip to resume point
         i = 0
+        if resume_step_id:
+            for j, step in enumerate(steps):
+                if step.get("id") == resume_step_id:
+                    i = j
+                    logger.info("Skipping to step %d (%s)", j, resume_step_id)
+                    break
         while i < len(steps):
             step = steps[i]
             step_id = step.get("id", f"step-{i}")
