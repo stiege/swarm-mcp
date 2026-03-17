@@ -97,7 +97,7 @@ def get_docker_run_cmd(
         "--permission-mode", "bypassPermissions",
         "--model", spec.model,
         "--allowedTools", ",".join(allowed_tools),
-        "--output-format", "json",
+        "--output-format", "stream-json",
         "--no-session-persistence",
     ])
 

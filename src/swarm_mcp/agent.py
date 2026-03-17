@@ -115,6 +115,56 @@ def _resolve_mcp_config(mcp_names: list[str]) -> dict:
     return result
 
 
+def _parse_stream_output(stream_file: str) -> tuple[str, float | None]:
+    """Parse accumulated stream-json lines into final text and cost.
+
+    stream-json emits one JSON object per line. We look for:
+    - {"type": "assistant", "message": {"content": [{"text": "..."}]}} — content chunks
+    - {"type": "result", ...} — final result with cost info
+
+    Returns (accumulated_text, cost_usd).
+    """
+    text_parts = []
+    cost = None
+
+    if not os.path.exists(stream_file):
+        return "", None
+
+    with open(stream_file) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            msg_type = obj.get("type")
+
+            if msg_type == "result":
+                # Final result line — has the complete text and cost
+                text_parts = [obj.get("result", "")]
+                cost = obj.get("cost_usd") or obj.get("total_cost_usd")
+                break
+
+            if msg_type == "assistant":
+                # Content chunk
+                message = obj.get("message", {})
+                for block in message.get("content", []):
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        text_parts.append(block["text"])
+                    elif isinstance(block, str):
+                        text_parts.append(block)
+
+            if msg_type == "content_block_delta":
+                delta = obj.get("delta", {})
+                if delta.get("type") == "text_delta":
+                    text_parts.append(delta.get("text", ""))
+
+    return "".join(text_parts), cost
+
+
 def run_agent(prompt: str, spec: SandboxSpec, run_id: str, agent_id: str) -> AgentResult:
     output_dir = os.path.join("/tmp/swarm-mcp", run_id, agent_id)
     os.makedirs(output_dir, exist_ok=True)
@@ -140,84 +190,92 @@ def run_agent(prompt: str, spec: SandboxSpec, run_id: str, agent_id: str) -> Age
         spec=spec,
     )
 
+    stream_file = os.path.join(output_dir, "stream.jsonl")
     start = time.monotonic()
+    timed_out = False
 
     try:
-        with open(prompt_file) as stdin_f:
-            result = subprocess.run(
+        with open(prompt_file) as stdin_f, open(stream_file, "w") as stream_f:
+            proc = subprocess.Popen(
                 cmd,
                 stdin=stdin_f,
-                capture_output=True,
+                stdout=stream_f,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=spec.timeout + 10,
             )
+            try:
+                stderr_output = proc.communicate(timeout=spec.timeout + 10)[1]
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                stderr_output = ""
+                logger.error("Agent %s/%s timed out after %ds", run_id, agent_id, spec.timeout)
+                docker.kill_container(container_name)
+                proc.kill()
+                proc.wait()
 
         duration = time.monotonic() - start
 
-        # Parse claude JSON output
-        text = ""
-        cost = None
-        try:
-            output = json.loads(result.stdout)
-            text = output.get("result", result.stdout)
-            cost = output.get("cost_usd") or output.get("total_cost_usd")
-        except (json.JSONDecodeError, TypeError):
-            text = result.stdout
+        # Parse whatever we captured — works for both complete and partial output
+        text, cost = _parse_stream_output(stream_file)
 
-        if result.returncode != 0:
-            error_text = result.stderr or f"Exit code {result.returncode}"
+        if timed_out:
+            error_msg = f"Timed out after {spec.timeout}s"
+            if text:
+                error_msg += f" (partial output captured: {len(text)} chars)"
+            agent_result = AgentResult(
+                agent_id=agent_id,
+                text=text,  # Partial output — the key improvement
+                exit_code=-1,
+                duration_seconds=round(duration, 2),
+                cost_usd=cost,
+                model=spec.model,
+                output_dir=output_dir,
+                error=error_msg,
+            )
+        elif proc.returncode != 0:
+            error_text = stderr_output or f"Exit code {proc.returncode}"
             logger.warning("Agent %s/%s failed: %s", run_id, agent_id, error_text)
-            return AgentResult(
+            agent_result = AgentResult(
                 agent_id=agent_id,
                 text=text,
-                exit_code=result.returncode,
+                exit_code=proc.returncode,
                 duration_seconds=round(duration, 2),
                 cost_usd=cost,
                 model=spec.model,
                 output_dir=output_dir,
                 error=error_text,
             )
+        else:
+            agent_result = AgentResult(
+                agent_id=agent_id,
+                text=text,
+                exit_code=0,
+                duration_seconds=round(duration, 2),
+                cost_usd=cost,
+                model=spec.model,
+                output_dir=output_dir,
+            )
 
-        # Write result to output dir
+        # Always write result to output dir
         result_file = os.path.join(output_dir, "result.json")
-        agent_result = AgentResult(
-            agent_id=agent_id,
-            text=text,
-            exit_code=0,
-            duration_seconds=round(duration, 2),
-            cost_usd=cost,
-            model=spec.model,
-            output_dir=output_dir,
-        )
         with open(result_file, "w") as f:
             json.dump(agent_result.to_dict(), f, indent=2, default=str)
 
         return agent_result
 
-    except subprocess.TimeoutExpired:
-        duration = time.monotonic() - start
-        logger.error("Agent %s/%s timed out after %ds", run_id, agent_id, spec.timeout)
-        docker.kill_container(container_name)
-        return AgentResult(
-            agent_id=agent_id,
-            text="",
-            exit_code=-1,
-            duration_seconds=round(duration, 2),
-            cost_usd=None,
-            model=spec.model,
-            output_dir=output_dir,
-            error=f"Timed out after {spec.timeout}s",
-        )
-
     except Exception as e:
         duration = time.monotonic() - start
         logger.exception("Agent %s/%s unexpected error", run_id, agent_id)
+
+        # Try to salvage partial output
+        text, cost = _parse_stream_output(stream_file)
+
         return AgentResult(
             agent_id=agent_id,
-            text="",
+            text=text,
             exit_code=-1,
             duration_seconds=round(duration, 2),
-            cost_usd=None,
+            cost_usd=cost,
             model=spec.model,
             output_dir=output_dir,
             error=str(e),
