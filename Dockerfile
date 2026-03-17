@@ -1,12 +1,13 @@
 FROM ubuntu:24.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates git \
+    ca-certificates git python3 python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-# Claude binary is copied from the host at build time
+# Claude and uv binaries copied from host at build time
 COPY claude /usr/local/bin/claude
-RUN chmod +x /usr/local/bin/claude
+COPY uv /usr/local/bin/uv
+RUN chmod +x /usr/local/bin/claude /usr/local/bin/uv
 
 # Use the existing ubuntu user (UID 1000) to match host file ownership
 RUN mkdir -p /output /workspace && chown ubuntu:ubuntu /output /workspace

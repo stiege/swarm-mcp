@@ -82,6 +82,13 @@ def get_docker_run_cmd(
         cmd.extend(["-v", f"{workspace_dir}:{spec.workdir}:rw"])
         cmd.extend(["-w", spec.workdir])
 
+    # Mount MCP project directories if MCPs are requested.
+    # Mount at same host path so MCP configs work unchanged.
+    if spec.mcps:
+        MCP_BASE = os.path.expanduser("~/projects/mcp")
+        if os.path.isdir(MCP_BASE):
+            cmd.extend(["-v", f"{MCP_BASE}:{MCP_BASE}"])
+
     # Add user-specified mounts
     if spec.mounts:
         for mount in spec.mounts:
