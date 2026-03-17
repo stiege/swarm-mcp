@@ -1,3 +1,23 @@
+"""Core agent runner — launches Claude inside a Docker container and captures output.
+
+This module is the heart of swarm-mcp.  :func:`run_agent` handles the full
+lifecycle of a single agent execution:
+
+1. Writing the prompt to disk and staging a minimal ``HOME`` directory with
+   Claude credentials and MCP configuration (:func:`_setup_agent_home`).
+2. Calling :func:`~swarm_mcp.docker.ensure_image` to guarantee the Docker
+   image is present.
+3. Running ``docker run`` via :func:`~swarm_mcp.docker.get_docker_run_cmd`,
+   streaming ``stream-json`` output to a ``.jsonl`` file.
+4. Parsing the accumulated stream output into final text and cost
+   (:func:`_parse_stream_output`).
+5. Returning an :class:`AgentResult` dataclass (and writing ``result.json``
+   to the output directory for later ref-resolution).
+
+Timeout handling ensures partial output is captured even when a container
+is killed mid-run.
+"""
+
 import hashlib
 import json
 import logging
@@ -17,6 +37,27 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AgentResult:
+    """Result of a single agent execution inside a Docker container.
+
+    Attributes:
+        agent_id: Identifier for this agent within its run (e.g.
+            ``"agent-0"``, ``"stage-1"``).
+        text: Full text output produced by the agent (may be partial if the
+            run timed out).
+        exit_code: Docker container exit code.  ``0`` indicates success;
+            ``-1`` indicates a timeout or internal error.
+        duration_seconds: Wall-clock execution time in seconds (rounded to
+            two decimal places).
+        cost_usd: Estimated API cost in US dollars, or ``None`` if cost
+            information was not emitted by Claude.
+        model: Claude model alias used for this run (e.g. ``"sonnet"``).
+        output_dir: Absolute host path to the agent's output directory,
+            containing ``result.json``, ``stream.jsonl``, and any files
+            written by the agent.
+        error: Human-readable error message if the run failed, or ``None``
+            on success.
+    """
+
     agent_id: str
     text: str
     exit_code: int
@@ -27,10 +68,32 @@ class AgentResult:
     error: str | None = None
 
     def to_dict(self) -> dict:
+        """Serialise the result to a plain dict (all fields, including ``None`` values).
+
+        Returns:
+            A dict representation suitable for JSON serialisation.
+        """
         return asdict(self)
 
     def to_ref_dict(self, run_id: str, **monadic_context) -> dict:
-        """Return metadata + ref + monadic fields, without text."""
+        """Return a lightweight ref dict — metadata and optional monadic stamps, without text.
+
+        The full text remains on disk at ``output_dir/result.json`` and can be
+        retrieved with the MCP ``unwrap`` tool.  This keeps MCP protocol
+        messages small.
+
+        Args:
+            run_id: Run identifier used to build the ``"ref"`` path and passed
+                to :func:`~swarm_mcp.monads.enrich_ref`.
+            **monadic_context: Optional keyword arguments forwarded to
+                :func:`~swarm_mcp.monads.enrich_ref` (e.g. ``budget_limit``,
+                ``classification``, ``encrypt``).
+
+        Returns:
+            A dict with ``agent_id``, ``ref``, ``exit_code``,
+            ``duration_seconds``, ``cost_usd``, ``model``, ``output_dir``,
+            and ``error`` fields, plus any monadic stamps applied.
+        """
         ref = {
             "agent_id": self.agent_id,
             "ref": f"{run_id}/{self.agent_id}",
@@ -52,6 +115,8 @@ _CLAUDE_SUBDIRS = [
     "plans", "projects", "sessions", "statsig", "tasks", "telemetry",
     "usage-data",
 ]
+"""Subdirectories pre-created inside the container's ``~/.claude/`` to prevent
+Claude from complaining about missing directories on first run."""
 
 
 def _setup_agent_home(output_dir: str, spec: SandboxSpec) -> str:
@@ -205,6 +270,37 @@ def _parse_stream_output(stream_file: str) -> tuple[str, float | None]:
 
 
 def run_agent(prompt: str, spec: SandboxSpec, run_id: str, agent_id: str) -> AgentResult:
+    """Run a single Claude agent inside a Docker container and return its result.
+
+    The full execution flow:
+
+    1. Creates ``/tmp/swarm-mcp/<run_id>/<agent_id>/`` as the output directory.
+    2. Prepends type-context to the prompt if ``spec.input_type`` or
+       ``spec.output_type`` is set.
+    3. Stages a minimal ``HOME`` directory with Claude credentials and MCP
+       config via :func:`_setup_agent_home`.
+    4. Calls :func:`~swarm_mcp.docker.ensure_image` (no-op if image exists).
+    5. Launches the container, streaming ``stream-json`` output to
+       ``stream.jsonl`` in the output directory.
+    6. Waits up to ``spec.timeout + 10`` seconds; kills the container on
+       ``TimeoutExpired`` and captures any partial output.
+    7. Parses the stream log, writes ``result.json``, and returns an
+       :class:`AgentResult`.
+
+    Args:
+        prompt: The task description sent to the agent via stdin.
+        spec: Fully resolved :class:`~swarm_mcp.sandbox.SandboxSpec` that
+            controls model, tools, resource limits, and environment.
+        run_id: Shared run identifier grouping agents from the same combinator
+            call (used to construct output paths and ref strings).
+        agent_id: Unique agent identifier within the run (e.g. ``"agent-0"``,
+            ``"stage-2"``).
+
+    Returns:
+        An :class:`AgentResult` with the agent's text output, exit code,
+        duration, cost, and any error message.  Partial output is preserved
+        even on timeout or unexpected exit.
+    """
     output_dir = os.path.join("/tmp/swarm-mcp", run_id, agent_id)
     os.makedirs(output_dir, exist_ok=True)
 

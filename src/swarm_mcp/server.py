@@ -1,3 +1,42 @@
+"""FastMCP server exposing the swarm-mcp agent orchestration API.
+
+This module is the top-level entry point for the MCP server.  It registers
+all tool handlers with a :class:`mcp.server.fastmcp.FastMCP` instance and
+wires together the subsystems:
+
+- **Combinator tools** (``run``, ``par``, ``map``, ``chain``, ``reduce``,
+  ``map_reduce``) — launch agents and compose their results.
+- **Monadic tools** (``unwrap``, ``inspect``, ``guard``, ``classify``,
+  ``encrypt``, ``decrypt``) — manipulate ref metadata.
+- **Higher-order tools** (``filter``, ``race``, ``retry``) — build
+  reliability and quality gates.
+- **Pipeline tool** (``pipeline``) — free-monad interpreter for declarative
+  multi-step workflows.
+- **Registry tools** (``wrap``, ``wrap_project``, ``save_sandbox_spec``,
+  ``list_sandbox_specs``) — manage resources and sandboxes.
+- **Type-system tools** (``list_type_registry``, ``get_type_definition``,
+  ``validate``) — natural-language type checking.
+
+Concurrency
+-----------
+A global :class:`threading.Semaphore` (``MAX_CONCURRENT``, default 10) limits
+simultaneous Docker containers.  Named resource pools (e.g. for GPU or
+database slots) are created on demand from ``SWARM_RESOURCE_<name>``
+environment variables.
+
+Environment variables
+---------------------
+``SWARM_MAX_CONCURRENT``
+    Maximum simultaneous agent containers (default: ``"10"``).
+``SWARM_QUEUE_TIMEOUT``
+    Seconds an agent will wait for a resource slot before failing
+    (default: ``"3600"``).
+``SWARM_RESOURCE_<name>``
+    Capacity of a named resource pool (e.g. ``SWARM_RESOURCE_gpu=1``).
+``SWARM_PROJECT_DIR``
+    Project root to register on startup (handled by the registry module).
+"""
+
 import json
 import logging
 import os
@@ -63,10 +102,35 @@ NETWORK_DEFAULT = True
 
 
 def _generate_run_id() -> str:
+    """Generate a short random run identifier (12 hex characters).
+
+    Returns:
+        A 12-character lowercase hexadecimal string derived from a UUID4.
+    """
     return uuid.uuid4().hex[:12]
 
 
 def _run_with_semaphore(prompt: str, spec: SandboxSpec, run_id: str, agent_id: str) -> AgentResult:
+    """Acquire all required resource slots, then run the agent.
+
+    Acquires the global execution semaphore first, then any named resource
+    pools requested by *spec*.  All semaphores are released in a ``finally``
+    block so they are always freed even if the agent raises.
+
+    Agents wait up to ``RESOURCE_QUEUE_TIMEOUT`` seconds for each resource
+    slot.  If any acquisition times out a failure :class:`AgentResult` is
+    returned immediately (without running the agent).
+
+    Args:
+        prompt: Task prompt to pass to the agent.
+        spec: Resolved :class:`~swarm_mcp.sandbox.SandboxSpec`.
+        run_id: Run identifier for output-path construction.
+        agent_id: Agent identifier within the run.
+
+    Returns:
+        An :class:`AgentResult` — either from a successful agent run or a
+        failure result if resource acquisition timed out.
+    """
     # Determine which resources this agent needs
     resources = list(spec.resources)
     if spec.gpu and "gpu" not in resources:
@@ -718,6 +782,8 @@ def inspect(ref: str) -> str:
             return json.dumps(response_tools.error_response("not_found", f"No output dir for ref: {ref}"))
 
         report_parts = [f"# Inspection: {ref}\n"]
+        text: str = ""
+        tool_calls: list[str] = []
 
         # Result metadata
         result_file = os.path.join(output_dir, "result.json")
@@ -809,8 +875,8 @@ def inspect(ref: str) -> str:
         return json.dumps({
             "ref": ref,
             "file": inspect_path,
-            "tool_calls": tool_calls if 'tool_calls' in dir() else [],
-            "has_partial_output": bool(text) if 'text' in dir() else False,
+            "tool_calls": tool_calls,
+            "has_partial_output": bool(text),
         })
 
     except Exception as e:
@@ -871,7 +937,7 @@ def filter(
 
         _, results = _run_par_internal(tasks, max_concurrency=min(len(tasks), MAX_CONCURRENT))
 
-        for r, ref_obj, result in zip(ref_list, ref_list, results):
+        for ref_obj, result in zip(ref_list, results):
             ref_str = ref_obj.get("ref") if isinstance(ref_obj, dict) else ref_obj
             verdict = "UNKNOWN"
             if result.text:
@@ -1717,7 +1783,12 @@ def validate(
         return json.dumps(response_tools.error_response("validate_error", str(e)))
 
 
-def main():
+def main() -> None:
+    """Start the swarm-mcp MCP server.
+
+    This is the entry point registered under the ``swarm-mcp`` console script
+    in ``pyproject.toml``.  It blocks until the server is stopped.
+    """
     mcp.run()
 
 

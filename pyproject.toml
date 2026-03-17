@@ -2,14 +2,31 @@
 name = "swarm-mcp"
 version = "0.1.0"
 description = "MCP server for orchestrating parallel Claude agent workloads via Docker containers"
+readme = "README.md"
 authors = [
-    { name = "Alex Hodge", email = "alex.hodge@gmail.com" }
+    { name = "swarm-mcp contributors", email = "swarm-mcp@example.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [
     "mcp[cli]",
     "cryptography",
 ]
+keywords = ["mcp", "claude", "agents", "docker", "orchestration", "parallel", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/stiege/swarm-mcp"
+Repository = "https://github.com/stiege/swarm-mcp"
+Documentation = "https://stiege.github.io/swarm-mcp"
+"Bug Tracker" = "https://github.com/stiege/swarm-mcp/issues"
 
 [project.scripts]
 swarm-mcp = "swarm_mcp.server:main"
@@ -22,4 +39,6 @@ build-backend = "uv_build"
 dev = [
     "pytest",
     "pytest-asyncio",
+    "mkdocs-material",
+    "ruff",
 ]

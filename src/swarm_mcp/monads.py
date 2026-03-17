@@ -1,13 +1,28 @@
 """Monadic wrappers for the swarm ref system.
 
-Each monad is a field (or set of fields) on the ref dict. No nested wrappers —
-just a flat dict with optional fields that combinators and the pipeline
-interpreter can check.
+Each monad layer adds optional fields to a ref dict rather than wrapping it in
+a nested data structure.  This keeps refs flat and JSON-serialisable while
+still composable — any combinator can inspect or add any layer.
 
-The monad stack:
-  Encrypted (Classified (Costed (Timed (Provenanced (Validated (Ref a))))))
+Monad stack (outermost first)::
 
-In practice: a ref dict with optional fields for each layer.
+    Encrypted(Classified(Costed(Timed(Provenanced(Validated(Ref a))))))
+
+In practice each layer is a ``stamp_*`` function that mutates the ref dict
+in-place and returns it, and a corresponding ``check_*`` / ``is_*`` predicate
+that reads the added fields.
+
+Layers
+------
+- **Provenance** — content hash, parent refs, timestamp (``stamp_provenance``).
+- **Costed** — step cost, running total, budget remaining (``stamp_cost``).
+- **Timed** — deadline tracking, time-remaining computation (``stamp_deadline``).
+- **Validated** — type verdict: VALID / PARTIAL / INVALID (``stamp_validated``).
+- **Retried** — attempt counter and prior error list (``stamp_retry``).
+- **Classified** — data-sensitivity level, MCP allowlist / denylist
+  (``stamp_classification``).
+- **Encrypted** — Fernet-encrypted payload with key reference
+  (``stamp_encrypted``).
 """
 
 import hashlib
@@ -24,7 +39,20 @@ logger = logging.getLogger(__name__)
 # ── Provenance ────────────────────────────────────────────────────
 
 def stamp_provenance(ref: dict, parent_refs: list[str] | None = None, text: str = "") -> dict:
-    """Add provenance fields to a ref dict."""
+    """Add provenance fields to a ref dict.
+
+    Computes a short SHA-256 hash of *text* (if provided) and records the
+    current UTC timestamp.  Mutates *ref* in-place and returns it.
+
+    Args:
+        ref: The ref dict to annotate.
+        parent_refs: List of upstream ref strings this result was derived from.
+        text: The result text used to compute the content hash.  Empty string
+            means no hash is stored.
+
+    Returns:
+        The same *ref* dict with a ``"provenance"`` key added.
+    """
     content_hash = hashlib.sha256(text.encode()).hexdigest()[:16] if text else None
     ref["provenance"] = {
         "parent_refs": parent_refs or [],
@@ -37,7 +65,21 @@ def stamp_provenance(ref: dict, parent_refs: list[str] | None = None, text: str 
 # ── Costed ────────────────────────────────────────────────────────
 
 def stamp_cost(ref: dict, budget_limit: float | None = None, spent_so_far: float = 0) -> dict:
-    """Add budget tracking fields to a ref."""
+    """Add budget-tracking fields to a ref dict.
+
+    Reads ``ref["cost_usd"]`` (set by the agent runner) and accumulates it
+    against *spent_so_far*.  Mutates *ref* in-place and returns it.
+
+    Args:
+        ref: The ref dict to annotate.  Must contain ``"cost_usd"`` if the
+            step cost is known (may be absent or ``None``).
+        budget_limit: Total USD budget cap for the pipeline, or ``None`` for
+            unlimited.
+        spent_so_far: USD already spent by prior steps in the same pipeline.
+
+    Returns:
+        The same *ref* dict with a ``"budget"`` key added.
+    """
     step_cost = ref.get("cost_usd") or 0
     total_spent = spent_so_far + step_cost
     ref["budget"] = {
@@ -50,7 +92,18 @@ def stamp_cost(ref: dict, budget_limit: float | None = None, spent_so_far: float
 
 
 def check_budget(ref: dict) -> bool:
-    """Returns True if budget is OK, False if exceeded."""
+    """Return ``True`` if the budget has not been exceeded, ``False`` otherwise.
+
+    A ref without a ``"budget"`` key (or without a configured limit) is always
+    considered within budget.
+
+    Args:
+        ref: A ref dict previously stamped by :func:`stamp_cost`.
+
+    Returns:
+        ``True`` if remaining budget is ≥ 0 or no limit is set;
+        ``False`` if the limit has been exceeded.
+    """
     budget = ref.get("budget")
     if not budget or budget.get("limit") is None:
         return True
@@ -60,7 +113,17 @@ def check_budget(ref: dict) -> bool:
 # ── Timed ─────────────────────────────────────────────────────────
 
 def stamp_deadline(ref: dict, deadline: float | None = None) -> dict:
-    """Add deadline tracking. deadline is a Unix timestamp."""
+    """Add deadline-tracking fields to a ref dict.
+
+    Args:
+        ref: The ref dict to annotate.
+        deadline: Absolute Unix timestamp after which the pipeline should stop,
+            or ``None`` to skip deadline tracking.
+
+    Returns:
+        The same *ref* dict, with ``"deadline"`` and ``"time_remaining"``
+        keys added when *deadline* is provided.
+    """
     if deadline:
         ref["deadline"] = deadline
         ref["time_remaining"] = max(0, deadline - time.time())
@@ -68,7 +131,15 @@ def stamp_deadline(ref: dict, deadline: float | None = None) -> dict:
 
 
 def remaining_time(deadline: float | None) -> float | None:
-    """Compute seconds remaining until deadline."""
+    """Compute the number of seconds remaining until a deadline.
+
+    Args:
+        deadline: Absolute Unix timestamp, or ``None`` for no deadline.
+
+    Returns:
+        Seconds remaining (clamped to 0 if already past), or ``None`` if
+        *deadline* is ``None``.
+    """
     if deadline is None:
         return None
     return max(0, deadline - time.time())
@@ -77,7 +148,20 @@ def remaining_time(deadline: float | None) -> float | None:
 # ── Validated ─────────────────────────────────────────────────────
 
 def stamp_validated(ref: dict, declared_type: str, verdict: str, validation_ref: str | None = None) -> dict:
-    """Mark a ref as validated against a type."""
+    """Mark a ref as validated against a declared type.
+
+    Args:
+        ref: The ref dict to annotate.
+        declared_type: The type name the artifact was checked against.
+        verdict: Validation outcome — one of ``"VALID"``, ``"PARTIAL"``,
+            or ``"INVALID"``.
+        validation_ref: Optional ref string pointing to the validator agent's
+            own result (useful for audit trails).
+
+    Returns:
+        The same *ref* dict with ``"validated_as"`` and
+        ``"validation_verdict"`` keys added.
+    """
     ref["validated_as"] = declared_type
     ref["validation_verdict"] = verdict  # VALID, PARTIAL, INVALID
     if validation_ref:
@@ -86,7 +170,17 @@ def stamp_validated(ref: dict, declared_type: str, verdict: str, validation_ref:
 
 
 def is_validated(ref: dict, required_type: str | None = None) -> bool:
-    """Check if a ref has been validated, optionally against a specific type."""
+    """Check whether a ref carries a ``VALID`` validation verdict.
+
+    Args:
+        ref: The ref dict to inspect.
+        required_type: If provided, also checks that the ref was validated
+            against this specific type name.
+
+    Returns:
+        ``True`` only when the verdict is ``"VALID"`` and, if *required_type*
+        is given, the ``validated_as`` field matches it.
+    """
     verdict = ref.get("validation_verdict")
     if verdict != "VALID":
         return False
@@ -98,7 +192,17 @@ def is_validated(ref: dict, required_type: str | None = None) -> bool:
 # ── Retried ───────────────────────────────────────────────────────
 
 def stamp_retry(ref: dict, attempt: int, max_retries: int, prior_errors: list[str] | None = None) -> dict:
-    """Track retry attempts on a ref."""
+    """Record retry-attempt metadata on a ref dict.
+
+    Args:
+        ref: The ref dict to annotate.
+        attempt: 1-based index of the current attempt.
+        max_retries: Maximum number of attempts allowed.
+        prior_errors: Error messages from all previous failed attempts.
+
+    Returns:
+        The same *ref* dict with a ``"retry"`` key added.
+    """
     ref["retry"] = {
         "attempt": attempt,
         "max_retries": max_retries,
@@ -118,7 +222,20 @@ CLASSIFICATION_LEVELS = {
 
 
 def stamp_classification(ref: dict, level: str, allowed_mcps: list[str] | None = None, denied_mcps: list[str] | None = None) -> dict:
-    """Classify a ref's sensitivity level."""
+    """Set data-sensitivity classification on a ref dict.
+
+    Args:
+        ref: The ref dict to annotate.
+        level: Sensitivity level string — one of ``"public"``, ``"internal"``,
+            ``"confidential"``, or ``"restricted"``.
+        allowed_mcps: Explicit allowlist of MCP server names that may access
+            this ref.  ``None`` means no allowlist (denylist still applies).
+        denied_mcps: Explicit denylist of MCP server names that must not
+            access this ref.
+
+    Returns:
+        The same *ref* dict with a ``"classification"`` key added.
+    """
     ref["classification"] = {
         "level": level,
         "level_numeric": CLASSIFICATION_LEVELS.get(level, 0),
@@ -129,9 +246,19 @@ def stamp_classification(ref: dict, level: str, allowed_mcps: list[str] | None =
 
 
 def check_classification(ref: dict, mcps_requested: list[str]) -> tuple[bool, str]:
-    """Check if requested MCPs are allowed given the ref's classification.
+    """Check whether the requested MCP servers are permitted by the ref's classification.
 
-    Returns (allowed, reason).
+    A ref without a ``"classification"`` key is always permitted.  Otherwise
+    the denylist is checked first, then the allowlist (if one is set).
+
+    Args:
+        ref: The ref dict, potentially stamped by :func:`stamp_classification`.
+        mcps_requested: Names of MCP servers that want to access this ref.
+
+    Returns:
+        A ``(allowed, reason)`` tuple.  *allowed* is ``True`` when all
+        requested MCPs pass; *reason* is ``"ok"`` on success or a
+        human-readable explanation on failure.
     """
     classification = ref.get("classification")
     if not classification:
@@ -152,17 +279,29 @@ def check_classification(ref: dict, mcps_requested: list[str]) -> tuple[bool, st
 # ── Encrypted ────────────────────────────────────────────────────
 
 KEYS_DIR = os.path.join("/tmp/swarm-mcp", ".keys")
+"""Directory used to persist Fernet encryption keys on disk (mode 0o600 each)."""
 
 
 def _generate_key() -> tuple[str, bytes]:
-    """Generate a Fernet key and return (key_id, key_bytes)."""
+    """Generate a fresh Fernet key and derive a short identifier for it.
+
+    Returns:
+        A ``(key_id, key_bytes)`` tuple where *key_id* is the first 12 hex
+        characters of the key's SHA-256 digest and *key_bytes* is the raw
+        Fernet key material.
+    """
     key = Fernet.generate_key()
     key_id = hashlib.sha256(key).hexdigest()[:12]
     return key_id, key
 
 
 def _store_key(key_id: str, key: bytes) -> None:
-    """Persist a key to the keys directory."""
+    """Persist a Fernet key to ``KEYS_DIR`` with mode 0o600.
+
+    Args:
+        key_id: Identifier string used as the filename.
+        key: Raw Fernet key bytes to write.
+    """
     os.makedirs(KEYS_DIR, exist_ok=True)
     path = os.path.join(KEYS_DIR, key_id)
     with open(path, "wb") as f:
@@ -171,7 +310,14 @@ def _store_key(key_id: str, key: bytes) -> None:
 
 
 def _load_key(key_id: str) -> bytes | None:
-    """Load a key by ID. Returns None if not found."""
+    """Load a Fernet key from ``KEYS_DIR`` by its identifier.
+
+    Args:
+        key_id: The key identifier (filename inside ``KEYS_DIR``).
+
+    Returns:
+        The raw key bytes, or ``None`` if the file does not exist.
+    """
     path = os.path.join(KEYS_DIR, key_id)
     if not os.path.exists(path):
         return None
@@ -180,17 +326,48 @@ def _load_key(key_id: str) -> bytes | None:
 
 
 def encrypt_text(text: str, key: bytes) -> bytes:
-    """Encrypt text with a Fernet key."""
+    """Encrypt a UTF-8 string using Fernet symmetric encryption.
+
+    Args:
+        text: Plaintext string to encrypt.
+        key: Fernet key bytes (32 url-safe base64-encoded bytes).
+
+    Returns:
+        Fernet token bytes (URL-safe base64; safe to store as a JSON string).
+    """
     return Fernet(key).encrypt(text.encode())
 
 
 def decrypt_text(token: bytes, key: bytes) -> str:
-    """Decrypt a Fernet token back to text."""
+    """Decrypt a Fernet token back to a UTF-8 string.
+
+    Args:
+        token: Fernet token bytes (as returned by :func:`encrypt_text`).
+        key: Fernet key bytes used for encryption.
+
+    Returns:
+        The original plaintext string.
+
+    Raises:
+        cryptography.fernet.InvalidToken: If the token is invalid or the
+            key does not match.
+    """
     return Fernet(key).decrypt(token).decode()
 
 
 def stamp_encrypted(ref: dict, key_id: str) -> dict:
-    """Mark a ref as encrypted. The key_id is needed to decrypt."""
+    """Mark a ref's payload as encrypted.
+
+    This only stamps the metadata; the actual encryption must have been
+    performed separately (see :func:`encrypt_text`).
+
+    Args:
+        ref: The ref dict to annotate.
+        key_id: The key identifier required to later decrypt the payload.
+
+    Returns:
+        The same *ref* dict with an ``"encrypted"`` key added.
+    """
     ref["encrypted"] = {
         "key_id": key_id,
         "algorithm": "fernet",
@@ -199,14 +376,30 @@ def stamp_encrypted(ref: dict, key_id: str) -> dict:
 
 
 def is_encrypted(ref: dict) -> bool:
-    """Check if a ref is encrypted."""
+    """Return ``True`` if the ref carries an encryption stamp.
+
+    Args:
+        ref: The ref dict to inspect.
+
+    Returns:
+        ``True`` when the ``"encrypted"`` key is present in *ref*.
+    """
     return "encrypted" in ref
 
 
 def check_encrypted(ref: dict, key_id: str | None = None) -> tuple[bool, str]:
-    """Check if the caller has the right key for an encrypted ref.
+    """Check whether a caller possesses the correct key to access an encrypted ref.
 
-    Returns (can_access, reason).
+    Args:
+        ref: The ref dict to inspect.
+        key_id: The key identifier the caller claims to hold, or ``None`` if
+            the caller does not have a key.
+
+    Returns:
+        A ``(can_access, reason)`` tuple.  *can_access* is ``True`` when the
+        ref is unencrypted or the provided *key_id* matches; *reason* is
+        ``"ok"`` or ``"not encrypted"`` on success, or a human-readable
+        explanation on failure.
     """
     enc = ref.get("encrypted")
     if not enc:
@@ -233,10 +426,34 @@ def enrich_ref(
     max_retries: int | None = None,
     encrypt: bool = False,
 ) -> dict:
-    """Apply all relevant monadic stamps to a ref in one call.
+    """Apply all relevant monadic stamps to a ref in a single call.
 
-    If encrypt=True, generates a key, encrypts the text on disk, and stamps
-    the ref. The key_id is returned in ref["encrypted"]["key_id"].
+    This is the canonical way to annotate a freshly-created ref before
+    returning it from a combinator.  Only non-``None`` options are applied.
+
+    Args:
+        ref: The ref dict to enrich (mutated in-place).
+        run_id: Run identifier used to locate the result file when encrypting.
+        text: Agent output text, used for the provenance content hash and
+            optionally for encryption.
+        parent_refs: Upstream ref strings this result was derived from.
+        budget_limit: Total pipeline USD budget cap (passed to
+            :func:`stamp_cost`).
+        spent_so_far: USD already consumed by prior steps.
+        deadline: Unix timestamp deadline for the pipeline (passed to
+            :func:`stamp_deadline`).
+        classification: Data-sensitivity level (passed to
+            :func:`stamp_classification`).
+        attempt: 1-based retry attempt index (passed to :func:`stamp_retry`
+            when provided).
+        max_retries: Maximum retries for the step (defaults to 3 when
+            *attempt* is set).
+        encrypt: When ``True``, generates a Fernet key, encrypts the text
+            field in the on-disk ``result.json``, and stamps the ref.  The
+            ``key_id`` is stored in ``ref["encrypted"]["key_id"]``.
+
+    Returns:
+        The same *ref* dict with all requested stamps applied.
     """
     stamp_provenance(ref, parent_refs, text)
     stamp_cost(ref, budget_limit, spent_so_far)

@@ -1,0 +1,60 @@
+site_name: swarm-mcp
+site_description: Parallel Claude agent orchestration via Docker + MCP
+site_url: https://stiege.github.io/swarm-mcp
+repo_url: https://github.com/stiege/swarm-mcp
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - tables
+  - attr_list
+  - md_in_html
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Quickstart: quickstart.md
+  - Concepts:
+      - Refs: concepts/refs.md
+      - Combinators: concepts/combinators.md
+      - Pipelines: concepts/pipelines.md
+      - Types: concepts/types.md
+      - Sandboxes: concepts/sandboxes.md
+      - Resources: concepts/resources.md
+  - Examples:
+      - Research Fan-Out: examples/research.md
+      - Code Review Pipeline: examples/code-review.md
+      - GPU Pipeline: examples/gpu-pipeline.md
+  - Observability: observability.md
+  - Security: security.md
+  - Contributing: contributing.md
