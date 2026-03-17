@@ -4,21 +4,12 @@ import os
 import shutil
 import subprocess
 import time
-import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 
 from . import docker
+from .sandbox import SandboxSpec
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class EnvConfig:
-    network: bool = False
-    tools: list[str] = field(default_factory=lambda: ["Read", "Write", "Glob", "Grep", "Bash"])
-    mounts: list[dict] = field(default_factory=list)
-    model: str = "sonnet"
-    timeout: int = 120
 
 
 @dataclass
@@ -36,24 +27,6 @@ class AgentResult:
         return asdict(self)
 
 
-def parse_env_config(
-    network: bool = False,
-    tools: str = "Read,Write,Glob,Grep,Bash",
-    mounts: str = "[]",
-    model: str = "sonnet",
-    timeout: int = 120,
-) -> EnvConfig:
-    tool_list = [t.strip() for t in tools.split(",") if t.strip()]
-    mount_list = json.loads(mounts) if isinstance(mounts, str) else mounts
-    return EnvConfig(
-        network=network,
-        tools=tool_list,
-        mounts=mount_list,
-        model=model,
-        timeout=timeout,
-    )
-
-
 _CLAUDE_SUBDIRS = [
     "backups", "cache", "debug", "downloads", "file-history",
     "plans", "projects", "sessions", "statsig", "tasks", "telemetry",
@@ -61,16 +34,16 @@ _CLAUDE_SUBDIRS = [
 ]
 
 
-def _setup_agent_home(output_dir: str) -> str:
+def _setup_agent_home(output_dir: str, spec: SandboxSpec) -> str:
     """Generate a minimal HOME directory for the container agent.
 
-    Returns the path to the home directory (output_dir/home/).
+    Writes claude config, MCP config, CLAUDE.md, and input files
+    based on the sandbox spec.
     """
     home_dir = os.path.join(output_dir, "home")
     claude_dir = os.path.join(home_dir, ".claude")
     os.makedirs(claude_dir, exist_ok=True)
 
-    # Create subdirectories claude expects to write to
     for subdir in _CLAUDE_SUBDIRS:
         os.makedirs(os.path.join(claude_dir, subdir), exist_ok=True)
 
@@ -88,17 +61,60 @@ def _setup_agent_home(output_dir: str) -> str:
             host_config = json.load(f)
         oauth_account = host_config.get("oauthAccount", {})
 
+    # If MCPs requested, build mcpServers config from host settings
+    mcp_servers = {}
+    if spec.mcps:
+        mcp_servers = _resolve_mcp_config(spec.mcps)
+
     minimal_config = {
         "hasCompletedOnboarding": True,
         "oauthAccount": oauth_account,
     }
+    if mcp_servers:
+        minimal_config["mcpServers"] = mcp_servers
+
     with open(os.path.join(home_dir, ".claude.json"), "w") as f:
         json.dump(minimal_config, f)
+
+    # Write CLAUDE.md to workspace if specified
+    if spec.claude_md:
+        workspace_dir = os.path.join(output_dir, "workspace")
+        os.makedirs(workspace_dir, exist_ok=True)
+        with open(os.path.join(workspace_dir, "CLAUDE.md"), "w") as f:
+            f.write(spec.claude_md)
+
+    # Write input files to workspace
+    if spec.input_files:
+        workspace_dir = os.path.join(output_dir, "workspace")
+        os.makedirs(workspace_dir, exist_ok=True)
+        for container_path, content in spec.input_files.items():
+            # Strip leading / to make relative to workspace
+            rel_path = container_path.lstrip("/")
+            full_path = os.path.join(workspace_dir, rel_path)
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            with open(full_path, "w") as f:
+                f.write(content)
 
     return home_dir
 
 
-def run_agent(prompt: str, env: EnvConfig, run_id: str, agent_id: str) -> AgentResult:
+def _resolve_mcp_config(mcp_names: list[str]) -> dict:
+    """Read host .claude.json mcpServers and extract configs for requested MCPs."""
+    if not os.path.exists(docker.CLAUDE_JSON):
+        return {}
+    with open(docker.CLAUDE_JSON) as f:
+        host_config = json.load(f)
+    host_mcps = host_config.get("mcpServers", {})
+    result = {}
+    for name in mcp_names:
+        if name in host_mcps:
+            result[name] = host_mcps[name]
+        else:
+            logger.warning("MCP server %s not found in host config", name)
+    return result
+
+
+def run_agent(prompt: str, spec: SandboxSpec, run_id: str, agent_id: str) -> AgentResult:
     output_dir = os.path.join("/tmp/swarm-mcp", run_id, agent_id)
     os.makedirs(output_dir, exist_ok=True)
 
@@ -108,7 +124,7 @@ def run_agent(prompt: str, env: EnvConfig, run_id: str, agent_id: str) -> AgentR
         f.write(prompt)
 
     # Generate minimal HOME with claude config for the container
-    _setup_agent_home(output_dir)
+    _setup_agent_home(output_dir, spec)
 
     docker.ensure_image()
 
@@ -116,11 +132,7 @@ def run_agent(prompt: str, env: EnvConfig, run_id: str, agent_id: str) -> AgentR
         run_id=run_id,
         agent_id=agent_id,
         output_dir=output_dir,
-        network=env.network,
-        mounts=env.mounts,
-        model=env.model,
-        tools=env.tools,
-        timeout=env.timeout,
+        spec=spec,
     )
 
     start = time.monotonic()
@@ -132,7 +144,7 @@ def run_agent(prompt: str, env: EnvConfig, run_id: str, agent_id: str) -> AgentR
                 stdin=stdin_f,
                 capture_output=True,
                 text=True,
-                timeout=env.timeout + 10,
+                timeout=spec.timeout + 10,
             )
 
         duration = time.monotonic() - start
@@ -156,7 +168,7 @@ def run_agent(prompt: str, env: EnvConfig, run_id: str, agent_id: str) -> AgentR
                 exit_code=result.returncode,
                 duration_seconds=round(duration, 2),
                 cost_usd=cost,
-                model=env.model,
+                model=spec.model,
                 output_dir=output_dir,
                 error=error_text,
             )
@@ -169,7 +181,7 @@ def run_agent(prompt: str, env: EnvConfig, run_id: str, agent_id: str) -> AgentR
             exit_code=0,
             duration_seconds=round(duration, 2),
             cost_usd=cost,
-            model=env.model,
+            model=spec.model,
             output_dir=output_dir,
         )
         with open(result_file, "w") as f:
@@ -179,7 +191,7 @@ def run_agent(prompt: str, env: EnvConfig, run_id: str, agent_id: str) -> AgentR
 
     except subprocess.TimeoutExpired:
         duration = time.monotonic() - start
-        logger.error("Agent %s/%s timed out after %ds", run_id, agent_id, env.timeout)
+        logger.error("Agent %s/%s timed out after %ds", run_id, agent_id, spec.timeout)
         docker.kill_container(container_name)
         return AgentResult(
             agent_id=agent_id,
@@ -187,9 +199,9 @@ def run_agent(prompt: str, env: EnvConfig, run_id: str, agent_id: str) -> AgentR
             exit_code=-1,
             duration_seconds=round(duration, 2),
             cost_usd=None,
-            model=env.model,
+            model=spec.model,
             output_dir=output_dir,
-            error=f"Timed out after {env.timeout}s",
+            error=f"Timed out after {spec.timeout}s",
         )
 
     except Exception as e:
@@ -201,7 +213,7 @@ def run_agent(prompt: str, env: EnvConfig, run_id: str, agent_id: str) -> AgentR
             exit_code=-1,
             duration_seconds=round(duration, 2),
             cost_usd=None,
-            model=env.model,
+            model=spec.model,
             output_dir=output_dir,
             error=str(e),
         )

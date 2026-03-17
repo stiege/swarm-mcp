@@ -8,7 +8,8 @@ from concurrent.futures import ThreadPoolExecutor
 from mcp.server.fastmcp import FastMCP
 
 from . import tools as response_tools
-from .agent import AgentResult, EnvConfig, parse_env_config, run_agent
+from .agent import AgentResult, run_agent
+from .sandbox import SandboxSpec, list_sandboxes, load_sandbox, resolve_sandbox, save_sandbox
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -22,13 +23,15 @@ _semaphore = threading.Semaphore(MAX_CONCURRENT)
 # Set to False only if using a local model backend (e.g. Ollama) in the future.
 NETWORK_DEFAULT = True
 
+PIPELINE_DIR = os.path.expanduser("~/.claude/pipelines")
+
 
 def _generate_run_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
-def _run_with_semaphore(prompt: str, env: EnvConfig, run_id: str, agent_id: str) -> AgentResult:
-    acquired = _semaphore.acquire(timeout=env.timeout)
+def _run_with_semaphore(prompt: str, spec: SandboxSpec, run_id: str, agent_id: str) -> AgentResult:
+    acquired = _semaphore.acquire(timeout=spec.timeout)
     if not acquired:
         return AgentResult(
             agent_id=agent_id,
@@ -36,12 +39,12 @@ def _run_with_semaphore(prompt: str, env: EnvConfig, run_id: str, agent_id: str)
             exit_code=-1,
             duration_seconds=0,
             cost_usd=None,
-            model=env.model,
+            model=spec.model,
             output_dir="",
-            error=f"Could not acquire execution slot within {env.timeout}s (max concurrent: {MAX_CONCURRENT})",
+            error=f"Could not acquire execution slot within {spec.timeout}s (max concurrent: {MAX_CONCURRENT})",
         )
     try:
-        return run_agent(prompt, env, run_id, agent_id)
+        return run_agent(prompt, spec, run_id, agent_id)
     finally:
         _semaphore.release()
 
@@ -78,6 +81,61 @@ def _extract_texts(items: list) -> list[str]:
     return texts
 
 
+def _resolve_spec(sandbox: str | None, **kwargs) -> SandboxSpec:
+    """Build a SandboxSpec from a sandbox name/JSON and inline overrides."""
+    # Parse tools from comma-separated string
+    tools_str = kwargs.pop("tools", None)
+    tools_list = None
+    if tools_str:
+        tools_list = [t.strip() for t in tools_str.split(",") if t.strip()]
+
+    # Parse mounts from JSON string
+    mounts_str = kwargs.pop("mounts", None)
+    mounts_list = None
+    if mounts_str:
+        mounts_list = json.loads(mounts_str) if isinstance(mounts_str, str) else mounts_str
+
+    # Parse mcps from JSON string
+    mcps_str = kwargs.pop("mcps", None)
+    mcps_list = None
+    if mcps_str:
+        mcps_list = json.loads(mcps_str) if isinstance(mcps_str, str) else mcps_str
+
+    # Parse input_files from JSON string
+    input_files_str = kwargs.pop("input_files", None)
+    input_files_dict = None
+    if input_files_str:
+        input_files_dict = json.loads(input_files_str) if isinstance(input_files_str, str) else input_files_str
+
+    # Parse output_schema from JSON string
+    schema_str = kwargs.pop("output_schema", None)
+    schema_dict = None
+    if schema_str:
+        schema_dict = json.loads(schema_str) if isinstance(schema_str, str) else schema_str
+
+    # Parse env_vars from JSON string
+    env_str = kwargs.pop("env_vars", None)
+    env_dict = None
+    if env_str:
+        env_dict = json.loads(env_str) if isinstance(env_str, str) else env_str
+
+    overrides = {k: v for k, v in kwargs.items() if v is not None}
+    if tools_list is not None:
+        overrides["tools"] = tools_list
+    if mounts_list is not None:
+        overrides["mounts"] = mounts_list
+    if mcps_list is not None:
+        overrides["mcps"] = mcps_list
+    if input_files_dict is not None:
+        overrides["input_files"] = input_files_dict
+    if schema_dict is not None:
+        overrides["output_schema"] = schema_dict
+    if env_dict is not None:
+        overrides["env_vars"] = env_dict
+
+    return resolve_sandbox(sandbox, **overrides)
+
+
 def _run_par_internal(task_list: list[dict], max_concurrency: int) -> tuple[str, list[AgentResult]]:
     """Shared parallel execution logic. Returns (run_id, results)."""
     run_id = _generate_run_id()
@@ -85,14 +143,25 @@ def _run_par_internal(task_list: list[dict], max_concurrency: int) -> tuple[str,
 
     def execute_task(i_task: tuple[int, dict]) -> AgentResult:
         i, task = i_task
-        env = parse_env_config(
+        spec = _resolve_spec(
+            task.get("sandbox"),
             network=task.get("network", NETWORK_DEFAULT),
             tools=task.get("tools", "Read,Write,Glob,Grep,Bash"),
-            mounts=task.get("mounts", "[]"),
+            mounts=task.get("mounts"),
             model=task.get("model", "sonnet"),
             timeout=task.get("timeout", 120),
+            system_prompt=task.get("system_prompt"),
+            claude_md=task.get("claude_md"),
+            output_schema=task.get("output_schema"),
+            mcps=task.get("mcps"),
+            effort=task.get("effort"),
+            max_budget=task.get("max_budget"),
+            env_vars=task.get("env_vars"),
+            input_files=task.get("input_files"),
+            memory=task.get("memory"),
+            cpus=task.get("cpus"),
         )
-        return _run_with_semaphore(task["prompt"], env, run_id, f"agent-{i}")
+        return _run_with_semaphore(task["prompt"], spec, run_id, f"agent-{i}")
 
     with ThreadPoolExecutor(max_workers=effective_concurrency) as executor:
         results = list(executor.map(execute_task, enumerate(task_list)))
@@ -100,29 +169,60 @@ def _run_par_internal(task_list: list[dict], max_concurrency: int) -> tuple[str,
     return run_id, results
 
 
+# ── Combinator Tools ──────────────────────────────────────────────
+
+
 @mcp.tool()
 def run(
     prompt: str,
+    sandbox: str | None = None,
     network: bool = NETWORK_DEFAULT,
     tools: str = "Read,Write,Glob,Grep,Bash",
     mounts: str = "[]",
     model: str = "sonnet",
     timeout: int = 120,
+    system_prompt: str | None = None,
+    claude_md: str | None = None,
+    output_schema: str | None = None,
+    mcps: str | None = None,
+    effort: str | None = None,
+    max_budget: float | None = None,
+    env_vars: str | None = None,
+    input_files: str | None = None,
+    memory: str | None = None,
+    cpus: float | None = None,
 ) -> str:
     """Run a single Claude agent in a Docker container. Returns the agent's text output and metadata.
 
     Args:
         prompt: The task prompt for the agent.
+        sandbox: Named sandbox spec (from ~/.claude/sandboxes/) or inline JSON. Overrides below are merged on top.
         network: Whether the container has network access (default: true — needed for API calls).
         tools: Comma-separated list of allowed Claude tools (default: Read,Write,Glob,Grep,Bash).
         mounts: JSON array of mount specs: [{"host_path": "...", "container_path": "...", "readonly": true}].
         model: Claude model to use (default: sonnet). Options: haiku, sonnet, opus.
         timeout: Max execution time in seconds (default: 120).
+        system_prompt: System prompt injected via --system-prompt (role, persona, instructions).
+        claude_md: Project instructions written to workspace CLAUDE.md.
+        output_schema: JSON schema string for structured output (--json-schema).
+        mcps: JSON array of MCP server names to attach: ["database-mcp", "whatsapp"].
+        effort: Effort level: low, medium, high, max.
+        max_budget: Explicit USD budget cap.
+        env_vars: JSON object of environment variables: {"KEY": "value"}.
+        input_files: JSON object of files to inject: {"/path": "content"}.
+        memory: Docker memory limit (e.g. "2g").
+        cpus: Docker CPU limit (e.g. 2.0).
     """
     try:
-        env = parse_env_config(network=network, tools=tools, mounts=mounts, model=model, timeout=timeout)
+        spec = _resolve_spec(
+            sandbox, network=network, tools=tools, mounts=mounts, model=model,
+            timeout=timeout, system_prompt=system_prompt, claude_md=claude_md,
+            output_schema=output_schema, mcps=mcps, effort=effort,
+            max_budget=max_budget, env_vars=env_vars, input_files=input_files,
+            memory=memory, cpus=cpus,
+        )
         run_id = _generate_run_id()
-        result = _run_with_semaphore(prompt, env, run_id, "agent-0")
+        result = _run_with_semaphore(prompt, spec, run_id, "agent-0")
         return json.dumps(response_tools.truncate_response(result.to_dict(), f"run_{run_id[:8]}"), default=str)
     except Exception as e:
         logger.exception("run failed")
@@ -137,7 +237,7 @@ def par(
     """Run multiple Claude agents in parallel. Each task can have its own config.
 
     Args:
-        tasks: JSON array of task objects: [{"prompt": "...", "tools": "...", "model": "sonnet", "timeout": 120}, ...].
+        tasks: JSON array of task objects. Each supports all sandbox fields (prompt, model, tools, sandbox, system_prompt, claude_md, output_schema, mcps, effort, etc.).
         max_concurrency: Max agents running simultaneously (default: 5).
     """
     try:
@@ -152,9 +252,7 @@ def par(
             "total": len(results),
             "succeeded": sum(1 for r in results if r.error is None),
             "failed": sum(1 for r in results if r.error is not None),
-            # Full results inline
             "results": [r.to_dict() for r in results],
-            # Refs for passing to reduce/chain without copying text
             "refs": [{"ref": f"{run_id}/{r.agent_id}"} for r in results if r.error is None],
         }
         return json.dumps(response_tools.truncate_response(data, f"par_{run_id[:8]}"), default=str)
@@ -170,22 +268,34 @@ def par(
 def map(
     prompt_template: str,
     inputs: str,
+    sandbox: str | None = None,
     network: bool = NETWORK_DEFAULT,
     tools: str = "Read,Write,Glob,Grep,Bash",
     model: str = "sonnet",
     timeout: int = 120,
     max_concurrency: int = 5,
+    system_prompt: str | None = None,
+    claude_md: str | None = None,
+    output_schema: str | None = None,
+    mcps: str | None = None,
+    effort: str | None = None,
 ) -> str:
     """Apply a prompt template to each input in parallel. Use {input} as the placeholder.
 
     Args:
         prompt_template: Prompt template with {input} placeholder(s).
         inputs: JSON array of input strings: ["input1", "input2", ...].
+        sandbox: Named sandbox spec or inline JSON.
         network: Whether containers have network access (default: true — needed for API calls).
         tools: Comma-separated list of allowed Claude tools.
         model: Claude model to use (default: sonnet).
         timeout: Max execution time per agent in seconds (default: 120).
         max_concurrency: Max agents running simultaneously (default: 5).
+        system_prompt: System prompt injected via --system-prompt.
+        claude_md: Project instructions written to workspace CLAUDE.md.
+        output_schema: JSON schema string for structured output.
+        mcps: JSON array of MCP server names to attach.
+        effort: Effort level: low, medium, high, max.
     """
     try:
         input_list = json.loads(inputs)
@@ -195,10 +305,16 @@ def map(
         task_list = [
             {
                 "prompt": prompt_template.replace("{input}", str(inp)),
+                "sandbox": sandbox,
                 "network": network,
                 "tools": tools,
                 "model": model,
                 "timeout": timeout,
+                "system_prompt": system_prompt,
+                "claude_md": claude_md,
+                "output_schema": output_schema,
+                "mcps": mcps,
+                "effort": effort,
             }
             for inp in input_list
         ]
@@ -219,7 +335,7 @@ def chain(
     """Run agents sequentially as a pipeline. Each stage receives the prior stage's output as context.
 
     Args:
-        stages: JSON array of stage objects: [{"prompt": "...", "tools": "...", "model": "sonnet", "timeout": 120}, ...].
+        stages: JSON array of stage objects. Each supports all sandbox fields (prompt, model, tools, sandbox, system_prompt, etc.).
     """
     try:
         stage_list = json.loads(stages)
@@ -235,15 +351,21 @@ def chain(
             if previous_text is not None:
                 prompt += f"\n\n# Context from previous stage:\n{previous_text}"
 
-            env = parse_env_config(
+            spec = _resolve_spec(
+                stage.get("sandbox"),
                 network=stage.get("network", NETWORK_DEFAULT),
                 tools=stage.get("tools", "Read,Write,Glob,Grep,Bash"),
-                mounts=stage.get("mounts", "[]"),
+                mounts=stage.get("mounts"),
                 model=stage.get("model", "sonnet"),
                 timeout=stage.get("timeout", 120),
+                system_prompt=stage.get("system_prompt"),
+                claude_md=stage.get("claude_md"),
+                output_schema=stage.get("output_schema"),
+                mcps=stage.get("mcps"),
+                effort=stage.get("effort"),
             )
 
-            result = _run_with_semaphore(prompt, env, run_id, f"stage-{i}")
+            result = _run_with_semaphore(prompt, spec, run_id, f"stage-{i}")
             intermediates.append(result.to_dict())
 
             if result.error is not None:
@@ -278,10 +400,12 @@ def chain(
 def reduce(
     results: str,
     synthesis_prompt: str,
+    sandbox: str | None = None,
     network: bool = NETWORK_DEFAULT,
     tools: str = "Read,Write,Glob,Grep,Bash",
     model: str = "sonnet",
     timeout: int = 120,
+    system_prompt: str | None = None,
 ) -> str:
     """Synthesise multiple results into one. Accepts plain strings or structured AgentResult objects
     (auto-extracts .text fields), so you can pipe par/map output directly without manual unwrapping.
@@ -289,17 +413,18 @@ def reduce(
     Args:
         results: JSON array — either plain strings ["text1", "text2"] or AgentResult objects [{"text": "...", ...}].
         synthesis_prompt: Instructions for how to synthesise the results.
+        sandbox: Named sandbox spec or inline JSON.
         network: Whether the container has network access (default: true — needed for API calls).
         tools: Comma-separated list of allowed Claude tools.
         model: Claude model to use (default: sonnet).
         timeout: Max execution time in seconds (default: 120).
+        system_prompt: System prompt for the reducer agent.
     """
     try:
         result_list = json.loads(results)
         if not isinstance(result_list, list) or len(result_list) == 0:
             return json.dumps(response_tools.error_response("invalid_input", "results must be a non-empty JSON array"))
 
-        # Unwrap: accept both plain strings and AgentResult dicts
         texts = _extract_texts(result_list)
 
         sections = []
@@ -308,9 +433,12 @@ def reduce(
 
         full_prompt = synthesis_prompt + "\n\n# Inputs to synthesise:\n\n" + "\n\n---\n\n".join(sections)
 
-        env = parse_env_config(network=network, tools=tools, model=model, timeout=timeout)
+        spec = _resolve_spec(
+            sandbox, network=network, tools=tools, model=model,
+            timeout=timeout, system_prompt=system_prompt,
+        )
         run_id = _generate_run_id()
-        result = _run_with_semaphore(full_prompt, env, run_id, "reducer")
+        result = _run_with_semaphore(full_prompt, spec, run_id, "reducer")
 
         data = {
             "run_id": run_id,
@@ -331,12 +459,18 @@ def map_reduce(
     prompt_template: str,
     inputs: str,
     synthesis_prompt: str,
+    sandbox: str | None = None,
     network: bool = NETWORK_DEFAULT,
     tools: str = "Read,Write,Glob,Grep,Bash",
     model: str = "sonnet",
     reduce_model: str = "",
     timeout: int = 120,
     max_concurrency: int = 5,
+    system_prompt: str | None = None,
+    reduce_system_prompt: str | None = None,
+    output_schema: str | None = None,
+    mcps: str | None = None,
+    effort: str | None = None,
 ) -> str:
     """Map a prompt over inputs in parallel, then reduce results into one — all in a single call.
     This is the monadic bind: map produces N results, reduce consumes them, no manual plumbing.
@@ -345,33 +479,41 @@ def map_reduce(
         prompt_template: Prompt template with {input} placeholder(s).
         inputs: JSON array of input strings: ["input1", "input2", ...].
         synthesis_prompt: Instructions for how to synthesise the map results.
+        sandbox: Named sandbox spec or inline JSON (used for map agents).
         network: Whether containers have network access (default: true — needed for API calls).
         tools: Comma-separated list of allowed Claude tools for map agents.
         model: Claude model for map agents (default: sonnet).
         reduce_model: Claude model for the reduce agent (default: same as model).
         timeout: Max execution time per agent in seconds (default: 120).
         max_concurrency: Max map agents running simultaneously (default: 5).
+        system_prompt: System prompt for map agents.
+        reduce_system_prompt: System prompt for the reduce agent.
+        output_schema: JSON schema for structured reduce output.
+        mcps: JSON array of MCP server names for map agents.
+        effort: Effort level for map agents.
     """
     try:
         input_list = json.loads(inputs)
         if not isinstance(input_list, list) or len(input_list) == 0:
             return json.dumps(response_tools.error_response("invalid_input", "inputs must be a non-empty JSON array"))
 
-        # Phase 1: Map
         task_list = [
             {
                 "prompt": prompt_template.replace("{input}", str(inp)),
+                "sandbox": sandbox,
                 "network": network,
                 "tools": tools,
                 "model": model,
                 "timeout": timeout,
+                "system_prompt": system_prompt,
+                "mcps": mcps,
+                "effort": effort,
             }
             for inp in input_list
         ]
 
         map_run_id, map_results = _run_par_internal(task_list, max_concurrency)
 
-        # Check for failures
         failed = [r for r in map_results if r.error is not None]
         succeeded = [r for r in map_results if r.error is None]
 
@@ -384,7 +526,6 @@ def map_reduce(
             }
             return json.dumps(response_tools.truncate_response(data, f"map_reduce_{map_run_id[:8]}"), default=str)
 
-        # Phase 2: Reduce — feed successful texts into synthesis
         texts = [r.text for r in succeeded]
         sections = []
         for i, text in enumerate(texts):
@@ -392,13 +533,12 @@ def map_reduce(
 
         full_prompt = synthesis_prompt + "\n\n# Inputs to synthesise:\n\n" + "\n\n---\n\n".join(sections)
 
-        reduce_env = parse_env_config(
-            network=network,
-            tools=tools,
-            model=reduce_model or model,
-            timeout=timeout,
+        reduce_spec = _resolve_spec(
+            sandbox, network=network, tools=tools,
+            model=reduce_model or model, timeout=timeout,
+            system_prompt=reduce_system_prompt, output_schema=output_schema,
         )
-        reduce_result = _run_with_semaphore(full_prompt, reduce_env, map_run_id, "reducer")
+        reduce_result = _run_with_semaphore(full_prompt, reduce_spec, map_run_id, "reducer")
 
         data = {
             "run_id": map_run_id,
@@ -417,6 +557,183 @@ def map_reduce(
     except Exception as e:
         logger.exception("map_reduce failed")
         return json.dumps(response_tools.error_response("map_reduce_error", str(e)))
+
+
+# ── Pipeline Tool (Free Monad interpreter) ───────────────────────
+
+
+@mcp.tool()
+def pipeline(
+    definition: str,
+) -> str:
+    """Execute a pipeline — a sequence of steps with conditions and loops.
+    This is the free monad interpreter: the pipeline definition is data, this tool evaluates it.
+
+    The definition is a JSON object or a pipeline name (loaded from ~/.claude/pipelines/).
+
+    Pipeline format:
+    {
+        "name": "optional-name",
+        "sandbox": "optional-default-sandbox",
+        "steps": [
+            {"id": "step-0", "prompt": "...", "model": "sonnet", "sandbox": "...", ...},
+            {"id": "test", "prompt": "Run tests", "tools": "Bash",
+             "on_fail": "fix"},
+            {"id": "fix", "prompt": "Fix failing tests", "tools": "Read,Edit,Bash",
+             "condition": "prev.error", "next": "test", "max_retries": 3}
+        ]
+    }
+
+    Step fields: prompt (required), plus any sandbox fields (model, tools, system_prompt, etc.).
+    Control flow: on_fail (jump to step id on error), next (jump after success), condition ("prev.error" = only run if previous failed), max_retries.
+
+    Args:
+        definition: Pipeline name (loaded from ~/.claude/pipelines/<name>.json) or inline JSON definition.
+    """
+    try:
+        # Load pipeline definition
+        if definition.startswith("{") or definition.startswith("["):
+            pipeline_def = json.loads(definition)
+        else:
+            path = os.path.join(PIPELINE_DIR, f"{definition}.json")
+            if not os.path.exists(path):
+                return json.dumps(response_tools.error_response("not_found", f"Pipeline not found: {path}"))
+            with open(path) as f:
+                pipeline_def = json.load(f)
+
+        steps = pipeline_def.get("steps", [])
+        if not steps:
+            return json.dumps(response_tools.error_response("invalid_input", "Pipeline has no steps"))
+
+        default_sandbox = pipeline_def.get("sandbox")
+        run_id = _generate_run_id()
+        results = []
+        step_results = {}  # id -> AgentResult
+        retry_counts = {}  # step_id -> count
+
+        i = 0
+        while i < len(steps):
+            step = steps[i]
+            step_id = step.get("id", f"step-{i}")
+
+            # Check condition
+            condition = step.get("condition")
+            if condition == "prev.error":
+                if results and results[-1].error is None:
+                    # Previous step succeeded, skip this conditional step
+                    i += 1
+                    continue
+
+            # Check max_retries
+            max_retries = step.get("max_retries", 3)
+            if retry_counts.get(step_id, 0) >= max_retries:
+                logger.warning("Step %s exceeded max retries (%d)", step_id, max_retries)
+                results.append(AgentResult(
+                    agent_id=step_id, text="", exit_code=-1, duration_seconds=0,
+                    cost_usd=None, model="", output_dir="",
+                    error=f"Exceeded max retries ({max_retries})",
+                ))
+                i += 1
+                continue
+
+            # Build prompt with previous context
+            prompt = step["prompt"]
+            if results:
+                prev = results[-1]
+                if prev.text:
+                    prompt += f"\n\n# Context from previous step ({prev.agent_id}):\n{prev.text}"
+                if prev.error:
+                    prompt += f"\n\n# Error from previous step ({prev.agent_id}):\n{prev.error}"
+
+            spec = _resolve_spec(
+                step.get("sandbox", default_sandbox),
+                network=step.get("network", NETWORK_DEFAULT),
+                tools=step.get("tools", "Read,Write,Glob,Grep,Bash"),
+                mounts=step.get("mounts"),
+                model=step.get("model", "sonnet"),
+                timeout=step.get("timeout", 120),
+                system_prompt=step.get("system_prompt"),
+                claude_md=step.get("claude_md"),
+                output_schema=step.get("output_schema"),
+                mcps=step.get("mcps"),
+                effort=step.get("effort"),
+            )
+
+            result = _run_with_semaphore(prompt, spec, run_id, step_id)
+            results.append(result)
+            step_results[step_id] = result
+
+            # Control flow
+            if result.error is not None:
+                on_fail = step.get("on_fail")
+                if on_fail:
+                    # Jump to the named step
+                    target_idx = next((j for j, s in enumerate(steps) if s.get("id") == on_fail), None)
+                    if target_idx is not None:
+                        retry_counts[on_fail] = retry_counts.get(on_fail, 0) + 1
+                        i = target_idx
+                        continue
+                # No on_fail handler — pipeline stops
+                break
+            else:
+                next_step = step.get("next")
+                if next_step:
+                    target_idx = next((j for j, s in enumerate(steps) if s.get("id") == next_step), None)
+                    if target_idx is not None:
+                        retry_counts[next_step] = retry_counts.get(next_step, 0) + 1
+                        i = target_idx
+                        continue
+
+            i += 1
+
+        data = {
+            "run_id": run_id,
+            "steps_executed": len(results),
+            "total_steps": len(steps),
+            "final": results[-1].to_dict() if results else None,
+            "all_results": [r.to_dict() for r in results],
+            "total_cost_usd": sum(r.cost_usd or 0 for r in results),
+            "total_duration_seconds": sum(r.duration_seconds for r in results),
+        }
+        return json.dumps(response_tools.truncate_response(data, f"pipeline_{run_id[:8]}"), default=str)
+
+    except json.JSONDecodeError as e:
+        return json.dumps(response_tools.error_response("json_error", f"Failed to parse pipeline: {e}"))
+    except Exception as e:
+        logger.exception("pipeline failed")
+        return json.dumps(response_tools.error_response("pipeline_error", str(e)))
+
+
+# ── Sandbox Management Tools ─────────────────────────────────────
+
+
+@mcp.tool()
+def save_sandbox_spec(name: str, spec: str) -> str:
+    """Save a reusable sandbox spec to ~/.claude/sandboxes/<name>.json.
+
+    Args:
+        name: Name for the sandbox spec (e.g. "web-researcher", "code-reviewer").
+        spec: JSON object with sandbox fields: model, tools, mcps, system_prompt, claude_md, output_schema, effort, max_budget, mounts, workdir, input_files, network, memory, cpus, timeout, env_vars.
+    """
+    try:
+        data = json.loads(spec)
+        sandbox = resolve_sandbox(None, **data)
+        path = save_sandbox(name, sandbox)
+        return json.dumps({"saved": True, "name": name, "path": path})
+    except Exception as e:
+        logger.exception("save_sandbox_spec failed")
+        return json.dumps(response_tools.error_response("save_error", str(e)))
+
+
+@mcp.tool()
+def list_sandbox_specs() -> str:
+    """List all saved sandbox specs from ~/.claude/sandboxes/."""
+    try:
+        specs = list_sandboxes()
+        return json.dumps(specs)
+    except Exception as e:
+        logger.exception("list_sandbox_specs failed")
+        return json.dumps(response_tools.error_response("list_error", str(e)))
 
 
 def main():

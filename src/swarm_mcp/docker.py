@@ -4,6 +4,8 @@ import shutil
 import subprocess
 import time
 
+from .sandbox import SandboxSpec
+
 logger = logging.getLogger(__name__)
 
 IMAGE_NAME = "swarm-agent"
@@ -44,14 +46,10 @@ def get_docker_run_cmd(
     run_id: str,
     agent_id: str,
     output_dir: str,
-    network: bool = False,
-    mounts: list[dict] | None = None,
-    model: str = "sonnet",
-    tools: list[str] | None = None,
-    timeout: int = 120,
+    spec: SandboxSpec,
 ) -> tuple[list[str], str]:
     container_name = f"swarm-{run_id[:8]}-{agent_id[:8]}"
-    allowed_tools = tools or ["Read", "Write", "Glob", "Grep", "Bash"]
+    allowed_tools = spec.tools or ["Read", "Write", "Glob", "Grep", "Bash"]
 
     # agent.py stages a home dir at output_dir/home/ with generated
     # .claude/ and .claude.json. Mount it as the container HOME so
@@ -61,16 +59,32 @@ def get_docker_run_cmd(
     cmd = [
         "docker", "run", "--rm", "-i",
         "--name", container_name,
-        f"--network={'host' if network else 'none'}",
+        f"--network={'host' if spec.network else 'none'}",
         "-v", f"{home_dir}:{CONTAINER_HOME}",
         "-v", f"{output_dir}:/output:rw",
         "-e", f"HOME={CONTAINER_HOME}",
         "-e", "CLAUDECODE=",
     ]
 
+    # Resource limits
+    if spec.memory:
+        cmd.extend(["--memory", spec.memory])
+    if spec.cpus:
+        cmd.extend(["--cpus", str(spec.cpus)])
+
+    # Custom environment variables
+    for key, value in spec.env_vars.items():
+        cmd.extend(["-e", f"{key}={value}"])
+
+    # Mount workspace with input files / CLAUDE.md if prepared
+    workspace_dir = os.path.join(output_dir, "workspace")
+    if os.path.isdir(workspace_dir):
+        cmd.extend(["-v", f"{workspace_dir}:{spec.workdir}:rw"])
+        cmd.extend(["-w", spec.workdir])
+
     # Add user-specified mounts
-    if mounts:
-        for mount in mounts:
+    if spec.mounts:
+        for mount in spec.mounts:
             host_path = mount["host_path"]
             container_path = mount["container_path"]
             mode = "ro" if mount.get("readonly", True) else "rw"
@@ -81,15 +95,29 @@ def get_docker_run_cmd(
         IMAGE_NAME,
         "--print",
         "--permission-mode", "bypassPermissions",
-        "--model", model,
+        "--model", spec.model,
         "--allowedTools", ",".join(allowed_tools),
         "--output-format", "json",
         "--no-session-persistence",
     ])
 
-    if timeout > 0:
-        # Rough budget estimate: ~$0.01/s for opus, less for others
-        max_budget = max(0.10, timeout * 0.005)
+    # System prompt
+    if spec.system_prompt:
+        cmd.extend(["--system-prompt", spec.system_prompt])
+
+    # Structured output schema
+    if spec.output_schema:
+        cmd.extend(["--json-schema", json.dumps(spec.output_schema)])
+
+    # Effort level
+    if spec.effort:
+        cmd.extend(["--effort", spec.effort])
+
+    # Budget
+    if spec.max_budget is not None:
+        cmd.extend(["--max-budget-usd", f"{spec.max_budget:.2f}"])
+    elif spec.timeout > 0:
+        max_budget = max(0.10, spec.timeout * 0.005)
         cmd.extend(["--max-budget-usd", f"{max_budget:.2f}"])
 
     return cmd, container_name
@@ -121,3 +149,7 @@ def cleanup_old_runs(base_dir: str = "/tmp/swarm-mcp", max_age_hours: int = 24) 
             logger.info("Removed old run directory: %s", entry.path)
 
     return removed
+
+
+# Needed for json.dumps in get_docker_run_cmd
+import json  # noqa: E402
