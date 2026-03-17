@@ -1449,7 +1449,6 @@ def pipeline(
             if result.error is not None:
                 on_fail = step.get("on_fail")
                 if on_fail:
-                    # Jump to the named step
                     target_idx = next((j for j, s in enumerate(steps) if s.get("id") == on_fail), None)
                     if target_idx is not None:
                         retry_counts[on_fail] = retry_counts.get(on_fail, 0) + 1
@@ -1458,13 +1457,37 @@ def pipeline(
                 # No on_fail handler — pipeline stops
                 break
             else:
-                next_step = step.get("next")
-                if next_step:
-                    target_idx = next((j for j, s in enumerate(steps) if s.get("id") == next_step), None)
-                    if target_idx is not None:
-                        retry_counts[next_step] = retry_counts.get(next_step, 0) + 1
-                        i = target_idx
-                        continue
+                # Check retry_if: {target_step: keyword} — if output contains keyword, jump
+                retry_if = step.get("retry_if")
+                if retry_if and isinstance(retry_if, dict) and result.text:
+                    for target, keyword in retry_if.items():
+                        if keyword in result.text:
+                            target_idx = next((j for j, s in enumerate(steps) if s.get("id") == target), None)
+                            if target_idx is not None:
+                                retry_counts[target] = retry_counts.get(target, 0) + 1
+                                logger.info("Step %s output matched retry_if keyword '%s', jumping to %s (attempt %d)",
+                                            step_id, keyword, target, retry_counts[target])
+                                i = target_idx
+                                break
+                    else:
+                        # No retry_if matched — fall through to next
+                        next_step = step.get("next")
+                        if next_step:
+                            target_idx = next((j for j, s in enumerate(steps) if s.get("id") == next_step), None)
+                            if target_idx is not None:
+                                retry_counts[next_step] = retry_counts.get(next_step, 0) + 1
+                                i = target_idx
+                                continue
+                        i += 1
+                    continue
+                else:
+                    next_step = step.get("next")
+                    if next_step:
+                        target_idx = next((j for j, s in enumerate(steps) if s.get("id") == next_step), None)
+                        if target_idx is not None:
+                            retry_counts[next_step] = retry_counts.get(next_step, 0) + 1
+                            i = target_idx
+                            continue
 
             i += 1
 
