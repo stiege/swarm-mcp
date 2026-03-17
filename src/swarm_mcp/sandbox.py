@@ -43,6 +43,8 @@ class SandboxSpec:
     # Resources
     memory: str | None = None  # e.g. "2g"
     cpus: float | None = None  # e.g. 2.0
+    gpu: bool = False  # Pass --gpus all to Docker
+    resources: list[str] = field(default_factory=list)  # Named resource pools to acquire
 
     # Runtime
     timeout: int = 120

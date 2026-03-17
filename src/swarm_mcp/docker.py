@@ -74,6 +74,8 @@ def get_docker_run_cmd(
         cmd.extend(["--memory", spec.memory])
     if spec.cpus:
         cmd.extend(["--cpus", str(spec.cpus)])
+    if spec.gpu or "gpu" in spec.resources:
+        cmd.extend(["--gpus", "all"])
 
     # Custom environment variables
     for key, value in spec.env_vars.items():

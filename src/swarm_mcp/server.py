@@ -22,6 +22,34 @@ mcp = FastMCP("swarm-mcp")
 MAX_CONCURRENT = int(os.environ.get("SWARM_MAX_CONCURRENT", "10"))
 _semaphore = threading.Semaphore(MAX_CONCURRENT)
 
+# Named resource pools — generic semaphores for shared resources.
+# Configured via SWARM_RESOURCE_<name>=<capacity> environment variables.
+# The "gpu" resource defaults to capacity 1 (only one agent uses the GPU at a time).
+# Examples:
+#   SWARM_RESOURCE_gpu=1         (default — one GPU user at a time)
+#   SWARM_RESOURCE_database=3    (three concurrent database connections)
+#   SWARM_RESOURCE_api=5         (rate-limit API access)
+_resource_pools: dict[str, threading.Semaphore] = {}
+_resource_pools_lock = threading.Lock()
+
+# Default capacities for well-known resources
+_DEFAULT_CAPACITIES = {
+    "gpu": 1,
+}
+
+
+def _get_resource_pool(name: str) -> threading.Semaphore:
+    """Get or create a named resource pool semaphore."""
+    if name not in _resource_pools:
+        with _resource_pools_lock:
+            if name not in _resource_pools:
+                env_key = f"SWARM_RESOURCE_{name}"
+                capacity = int(os.environ.get(env_key, _DEFAULT_CAPACITIES.get(name, 1)))
+                _resource_pools[name] = threading.Semaphore(capacity)
+                logger.info("Created resource pool '%s' with capacity %d", name, capacity)
+    return _resource_pools[name]
+
+
 # network defaults to True because every agent needs to reach the Anthropic API.
 # Set to False only if using a local model backend (e.g. Ollama) in the future.
 NETWORK_DEFAULT = True
@@ -34,6 +62,12 @@ def _generate_run_id() -> str:
 
 
 def _run_with_semaphore(prompt: str, spec: SandboxSpec, run_id: str, agent_id: str) -> AgentResult:
+    # Determine which resources this agent needs
+    resources = list(spec.resources)
+    if spec.gpu and "gpu" not in resources:
+        resources.append("gpu")
+
+    # Acquire global execution slot
     acquired = _semaphore.acquire(timeout=spec.timeout)
     if not acquired:
         return AgentResult(
@@ -46,9 +80,33 @@ def _run_with_semaphore(prompt: str, spec: SandboxSpec, run_id: str, agent_id: s
             output_dir="",
             error=f"Could not acquire execution slot within {spec.timeout}s (max concurrent: {MAX_CONCURRENT})",
         )
+
+    # Acquire named resource pools
+    acquired_resources: list[str] = []
     try:
+        for res in resources:
+            pool = _get_resource_pool(res)
+            if not pool.acquire(timeout=spec.timeout):
+                # Release already-acquired resources and fail
+                for acquired_res in acquired_resources:
+                    _get_resource_pool(acquired_res).release()
+                _semaphore.release()
+                return AgentResult(
+                    agent_id=agent_id,
+                    text="",
+                    exit_code=-1,
+                    duration_seconds=0,
+                    cost_usd=None,
+                    model=spec.model,
+                    output_dir="",
+                    error=f"Could not acquire resource '{res}' within {spec.timeout}s",
+                )
+            acquired_resources.append(res)
+
         return run_agent(prompt, spec, run_id, agent_id)
     finally:
+        for res in acquired_resources:
+            _get_resource_pool(res).release()
         _semaphore.release()
 
 
@@ -141,6 +199,15 @@ def _resolve_spec(sandbox: str | None, **kwargs) -> SandboxSpec:
         elif isinstance(env_raw, str):
             env_dict = json.loads(env_raw)
 
+    # Parse resources from JSON string or list
+    resources_raw = kwargs.pop("resources", None)
+    resources_list = None
+    if resources_raw:
+        if isinstance(resources_raw, list):
+            resources_list = resources_raw
+        elif isinstance(resources_raw, str):
+            resources_list = json.loads(resources_raw)
+
     overrides = {k: v for k, v in kwargs.items() if v is not None}
     if tools_list is not None:
         overrides["tools"] = tools_list
@@ -154,6 +221,8 @@ def _resolve_spec(sandbox: str | None, **kwargs) -> SandboxSpec:
         overrides["output_schema"] = schema_dict
     if env_dict is not None:
         overrides["env_vars"] = env_dict
+    if resources_list is not None:
+        overrides["resources"] = resources_list
 
     return resolve_sandbox(sandbox, **overrides)
 
@@ -198,6 +267,8 @@ def run(
     input_files: str | None = None,
     memory: str | None = None,
     cpus: float | None = None,
+    gpu: bool | None = None,
+    resources: str | None = None,
     input_type: str | None = None,
     output_type: str | None = None,
 ) -> str:
@@ -221,6 +292,8 @@ def run(
         input_files: JSON object of files to inject: {"/path": "content"}.
         memory: Docker memory limit (e.g. "2g").
         cpus: Docker CPU limit (e.g. 2.0).
+        gpu: Pass --gpus all to Docker for GPU access (default: false). Acquires the "gpu" resource pool (capacity 1).
+        resources: JSON array of named resource pools to acquire before execution (e.g. '["gpu", "database"]'). Agents wait for all resources. Configure capacity via SWARM_RESOURCE_<name>=<n> env vars.
         input_type: Natural language type describing what the agent receives (e.g. "research notes", "[code-review]").
         output_type: Natural language type describing what the agent must produce (e.g. "[mcp-server] with [test-suite]").
     """
@@ -230,7 +303,8 @@ def run(
             timeout=timeout, system_prompt=system_prompt, claude_md=claude_md,
             output_schema=output_schema, mcps=mcps, effort=effort,
             max_budget=max_budget, env_vars=env_vars, input_files=input_files,
-            memory=memory, cpus=cpus, input_type=input_type, output_type=output_type,
+            memory=memory, cpus=cpus, gpu=gpu, resources=resources,
+            input_type=input_type, output_type=output_type,
         )
         run_id = _generate_run_id()
         result = _run_with_semaphore(prompt, spec, run_id, "agent-0")
