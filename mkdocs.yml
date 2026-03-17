@@ -50,6 +50,7 @@ nav:
       - Pipelines: concepts/pipelines.md
       - Types: concepts/types.md
       - Sandboxes: concepts/sandboxes.md
+      - MCP Access: concepts/mcps.md
       - Resources: concepts/resources.md
   - Examples:
       - Research Fan-Out: examples/research.md

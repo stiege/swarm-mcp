@@ -23,6 +23,8 @@ swarm-mcp is an MCP server that lets your Claude session spawn other Claude agen
 
 - **Natural language type contracts with validation.** Types are markdown files that describe what an agent should produce. The `validate` tool spawns a validator agent that checks the output against the type definition. `filter` keeps only results that pass. `retry` re-runs until the output validates. Types reference each other with `[type-name]` syntax.
 
+- **Agents can use your MCP servers.** Set `mcps: ["database-mcp"]` in a sandbox spec and the agent gets access to your local knowledge base, Logseq graph, Google Workspace, or any other MCP server configured in your Claude settings. Data paths are mounted into the container at the same host path; network MCPs need no extra config. See the [MCP Access guide](docs/concepts/mcps.md).
+
 - **Full artifact tracing.** Every container runs a PostToolUse hook that logs MCP tool calls and file writes to `artifacts.jsonl`. `inspect` generates a post-mortem debug report from any ref. `unwrap` extracts output to a file you can `Read()` or `Grep`. Every ref carries a provenance hash and parent chain.
 
 ---
@@ -285,7 +287,7 @@ A sandbox spec defines the environment for an agent container. Use inline on any
 |---|---|---|---|
 | `model` | string | `"sonnet"` | Claude model: `haiku`, `sonnet`, `opus` |
 | `tools` | list[string] | `["Read","Write","Glob","Grep","Bash"]` | Allowed Claude tools |
-| `mcps` | list[string] | `[]` | MCP servers to attach (by name from host config) |
+| `mcps` | list[string] | `[]` | MCP servers to attach (by name from host `~/.claude.json`). The server's code and config are mounted into the container; add data paths via `mounts`. See [MCP Access](docs/concepts/mcps.md). |
 | `system_prompt` | string | `null` | System prompt injected via `--system-prompt` |
 | `claude_md` | string | `null` | Written to workspace `CLAUDE.md` |
 | `output_schema` | dict | `null` | JSON schema for structured output (`--json-schema`) |
