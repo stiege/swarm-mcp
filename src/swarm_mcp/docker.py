@@ -231,6 +231,34 @@ def kill_container(name: str) -> None:
         logger.warning("Failed to kill container %s", name, exc_info=True)
 
 
+def kill_pipeline_containers(run_id: str) -> list[str]:
+    """Kill all Docker containers associated with a pipeline run.
+
+    Containers are named ``swarm-{run_id[:8]}-*``.  Returns a list of
+    container IDs that were killed.
+    """
+    prefix = f"swarm-{run_id[:8]}"
+    killed = []
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "--filter", f"name={prefix}", "-q"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        container_ids = [c for c in result.stdout.strip().splitlines() if c]
+        for cid in container_ids:
+            try:
+                subprocess.run(["docker", "kill", cid], capture_output=True, timeout=10)
+                killed.append(cid)
+                logger.info("Killed pipeline container %s (run %s)", cid, run_id)
+            except Exception:
+                logger.warning("Failed to kill container %s", cid, exc_info=True)
+    except Exception:
+        logger.warning("Failed to list containers for run %s", run_id, exc_info=True)
+    return killed
+
+
 def cleanup_old_runs(base_dir: str = "/tmp/swarm-mcp", max_age_hours: int = 24) -> int:
     """Remove run directories older than *max_age_hours* from *base_dir*.
 

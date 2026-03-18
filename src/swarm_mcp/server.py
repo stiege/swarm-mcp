@@ -52,6 +52,7 @@ from . import stamps, tools as response_tools
 from . import monads
 from .monads import MonadSpec, evaluate_monad, save_monad, load_monad, list_monads, deep_merge
 from .agent import AgentResult, run_agent
+from . import docker as _docker
 from .sandbox import SandboxSpec, list_sandboxes, load_sandbox, resolve_sandbox, save_sandbox
 from . import registry
 from .types import build_validation_prompt, get_type, list_types as _list_types, resolve_type
@@ -78,6 +79,13 @@ RESOURCE_QUEUE_TIMEOUT = int(os.environ.get("SWARM_QUEUE_TIMEOUT", "3600"))
 #   SWARM_RESOURCE_api=5         (rate-limit API access)
 _resource_pools: dict[str, threading.Semaphore] = {}
 _resource_pools_lock = threading.Lock()
+
+# Active background pipeline threads and their stop events (run_id → Thread/Event).
+# pipeline() launches pipelines in daemon threads and returns immediately.
+# pipeline_kill() sets the stop event and kills Docker containers.
+_active_pipelines: dict[str, threading.Thread] = {}
+_pipeline_stop_events: dict[str, threading.Event] = {}
+_pipelines_lock = threading.Lock()
 
 # Default capacities for well-known resources
 _DEFAULT_CAPACITIES = {
@@ -1553,15 +1561,254 @@ def list_monad_specs() -> str:
         return json.dumps(response_tools.error_response("monad_list_error", str(e)))
 
 
+def _run_pipeline_loop(
+    pipeline_def: dict,
+    run_id: str,
+    resume_step_id: str | None,
+    stop_event: threading.Event,
+) -> dict:
+    """Execute the pipeline loop synchronously. Intended to run in a background thread.
+
+    Returns the final result dict (same shape as the old pipeline() return value).
+    """
+    steps = pipeline_def.get("steps", [])
+    default_sandbox = pipeline_def.get("sandbox")
+    results = []
+    step_results: dict = {}
+    retry_counts: dict = {}
+    monad_context: dict = {}
+
+    inline_monads = {
+        name: MonadSpec(
+            name=name,
+            spec=defn["spec"],
+            model=defn.get("model", "claude-haiku-4-5-20251001"),
+            description=defn.get("description", ""),
+        )
+        for name, defn in pipeline_def.get("monads", {}).items()
+    }
+
+    def _resolve_monad(name: str) -> "MonadSpec | None":
+        return inline_monads.get(name) or load_monad(name)
+
+    budget_limit = pipeline_def.get("budget")
+    spent_so_far = 0.0
+    deadline = None
+    if pipeline_def.get("deadline_seconds"):
+        deadline = time.time() + pipeline_def["deadline_seconds"]
+
+    shared_dir = os.path.join("/tmp/swarm-mcp", run_id, "shared")
+    os.makedirs(shared_dir, exist_ok=True)
+    logger.info("Pipeline %s shared dir: %s", run_id, shared_dir)
+
+    i = 0
+    if resume_step_id:
+        for j, step in enumerate(steps):
+            if step.get("id") == resume_step_id:
+                i = j
+                logger.info("Skipping to step %d (%s)", j, resume_step_id)
+                break
+
+    while i < len(steps):
+        # Stop if pipeline_kill() was called
+        if stop_event.is_set():
+            results.append(AgentResult(
+                agent_id="killed", text="", exit_code=-1, duration_seconds=0,
+                cost_usd=None, model="", output_dir="",
+                error="Pipeline killed by pipeline_kill()",
+            ))
+            _write_pipeline_status(run_id, "killed", "killed", results, spent_so_far)
+            break
+
+        step = steps[i]
+        step_id = step.get("id", f"step-{i}")
+
+        condition = step.get("condition")
+        if condition == "prev.error":
+            if results and results[-1].error is None:
+                i += 1
+                continue
+
+        if step.get("on_fail") is None and not step.get("retry_if"):
+            max_retries = step.get("max_retries", 3)
+            if retry_counts.get(step_id, 0) >= max_retries:
+                logger.warning("Step %s exceeded max retries (%d)", step_id, max_retries)
+                results.append(AgentResult(
+                    agent_id=step_id, text="", exit_code=-1, duration_seconds=0,
+                    cost_usd=None, model="", output_dir="",
+                    error=f"Exceeded max retries ({max_retries})",
+                ))
+                break
+
+        prompt = step["prompt"]
+        if results:
+            prev = results[-1]
+            if prev.text:
+                prompt += f"\n\n# Context from previous step ({prev.agent_id}):\n{prev.text}"
+            if prev.error:
+                prompt += f"\n\n# Error from previous step ({prev.agent_id}):\n{prev.error}"
+
+        if budget_limit and spent_so_far >= budget_limit:
+            results.append(AgentResult(
+                agent_id=step_id, text="", exit_code=-1, duration_seconds=0,
+                cost_usd=None, model="", output_dir="",
+                error=f"Budget exhausted: spent ${spent_so_far:.2f} of ${budget_limit:.2f} limit",
+            ))
+            break
+
+        if deadline:
+            remaining = stamps.remaining_time(deadline)
+            if remaining is not None and remaining <= 0:
+                results.append(AgentResult(
+                    agent_id=step_id, text="", exit_code=-1, duration_seconds=0,
+                    cost_usd=None, model="", output_dir="",
+                    error="Pipeline deadline exceeded",
+                ))
+                break
+
+        overrides = {k: v for k, v in step.items() if k not in ("prompt", "sandbox", "id", "on_fail", "on_success", "next", "condition", "max_retries", "input_type", "output_type") and v is not None}
+
+        if deadline:
+            remaining = stamps.remaining_time(deadline)
+            if remaining is not None:
+                step_timeout = overrides.get("timeout", 300)
+                overrides["timeout"] = int(min(step_timeout, remaining))
+
+        spec = _resolve_spec(step.get("sandbox", default_sandbox), **overrides)
+
+        shared_mount = {"host_path": shared_dir, "container_path": "/shared", "readonly": False}
+        spec = spec.merge({"mounts": (spec.mounts or []) + [shared_mount]})
+
+        result = _run_with_semaphore(prompt, spec, run_id, step_id)
+        results.append(result)
+        step_results[step_id] = result
+
+        spent_so_far += result.cost_usd or 0
+        _write_pipeline_status(run_id, "running", step_id, results, spent_so_far)
+
+        if result.error is not None:
+            on_fail = step.get("on_fail")
+            if isinstance(on_fail, dict) and "monad" in on_fail:
+                monad_spec = _resolve_monad(on_fail["monad"])
+                if monad_spec is None:
+                    logger.error("on_fail monad '%s' not found in registry", on_fail["monad"])
+                    break
+                try:
+                    cont = evaluate_monad(monad_spec, pipeline_def, step, results, monad_context)
+                    monad_context.update(cont.context)
+                    _write_monad_context(shared_dir, monad_context)
+                    logger.info("Monad '%s' on_fail: action=%s target=%s reason=%s",
+                                on_fail["monad"], cont.action, cont.target, cont.reason)
+                    new_i = _apply_monad_continuation(cont, pipeline_def, steps, step_id, run_id, results, spent_so_far)
+                    if new_i is None:
+                        break
+                    i = new_i
+                    continue
+                except Exception as e:
+                    logger.error("Monad '%s' evaluation failed: %s", on_fail["monad"], e)
+                    break
+            elif on_fail:
+                target_idx = next((j for j, s in enumerate(steps) if s.get("id") == on_fail), None)
+                if target_idx is not None:
+                    retry_counts[on_fail] = retry_counts.get(on_fail, 0) + 1
+                    i = target_idx
+                    continue
+            break
+        else:
+            on_success = step.get("on_success")
+            if isinstance(on_success, dict) and "monad" in on_success:
+                monad_spec = _resolve_monad(on_success["monad"])
+                if monad_spec is not None:
+                    try:
+                        cont = evaluate_monad(monad_spec, pipeline_def, step, results, monad_context)
+                        monad_context.update(cont.context)
+                        _write_monad_context(shared_dir, monad_context)
+                        logger.info("Monad '%s' on_success: action=%s target=%s",
+                                    on_success["monad"], cont.action, cont.target)
+                        new_i = _apply_monad_continuation(cont, pipeline_def, steps, step_id, run_id, results, spent_so_far)
+                        if new_i is None:
+                            break
+                        i = new_i
+                        continue
+                    except Exception as e:
+                        logger.error("Monad '%s' evaluation failed: %s", on_success["monad"], e)
+
+            retry_if = step.get("retry_if")
+            if retry_if and isinstance(retry_if, dict) and result.text:
+                for target, keyword in retry_if.items():
+                    if keyword in result.text:
+                        target_idx = next((j for j, s in enumerate(steps) if s.get("id") == target), None)
+                        if target_idx is not None:
+                            max_retries = step.get("max_retries", 3)
+                            current_count = retry_counts.get(step_id, 0)
+                            if current_count >= max_retries:
+                                logger.warning("Step %s retry_if limit reached (%d), not jumping to %s",
+                                               step_id, max_retries, target)
+                                break
+                            retry_counts[step_id] = current_count + 1
+                            logger.info("Step %s output matched retry_if keyword '%s', jumping to %s (attempt %d/%d)",
+                                        step_id, keyword, target, retry_counts[step_id], max_retries)
+                            i = target_idx
+                            break
+                else:
+                    next_step = step.get("next")
+                    if next_step:
+                        target_idx = next((j for j, s in enumerate(steps) if s.get("id") == next_step), None)
+                        if target_idx is not None:
+                            retry_counts[next_step] = retry_counts.get(next_step, 0) + 1
+                            i = target_idx
+                            continue
+                    i += 1
+                continue
+            else:
+                next_step = step.get("next")
+                if next_step:
+                    target_idx = next((j for j, s in enumerate(steps) if s.get("id") == next_step), None)
+                    if target_idx is not None:
+                        retry_counts[next_step] = retry_counts.get(next_step, 0) + 1
+                        i = target_idx
+                        continue
+
+        i += 1
+
+    last_step_id = results[-1].agent_id if results else "none"
+    if results and results[-1].error is not None:
+        final_status = "broken" if not stop_event.is_set() else "killed"
+        broken_reason = results[-1].error
+    else:
+        final_status = "done"
+        broken_reason = None
+    _write_pipeline_status(run_id, final_status, last_step_id, results, spent_so_far, broken_reason=broken_reason)
+
+    data = {
+        "run_id": run_id,
+        "status": final_status,
+        "steps_executed": len(results),
+        "total_steps": len(steps),
+        "final": results[-1].to_ref_dict(run_id) if results else None,
+        "all_results": [r.to_ref_dict(run_id) for r in results],
+        "total_cost_usd": spent_so_far,
+        "total_duration_seconds": sum(r.duration_seconds for r in results),
+        "budget": {"spent": spent_so_far, "limit": budget_limit} if budget_limit else None,
+        "deadline_met": (time.time() < deadline) if deadline else None,
+    }
+    if broken_reason:
+        data["broken_reason"] = broken_reason
+    return data
+
+
 @mcp.tool()
 def pipeline(
     definition: str,
     resume: str | None = None,
 ) -> str:
-    """Execute a pipeline — a sequence of steps with conditions and loops.
-    This is the free monad interpreter: the pipeline definition is data, this tool evaluates it.
+    """Launch a pipeline in the background and return immediately.
 
-    The definition is a JSON object or a pipeline name (loaded from ~/.claude/pipelines/).
+    The pipeline runs asynchronously in a daemon thread. Use pipeline_status(run_id)
+    to poll progress, and pipeline_kill(run_id) to stop it.
+
+    The definition is a JSON object or a pipeline name (loaded from registered project
+    pipelines/ directories or ~/.claude/pipelines/).
 
     Pipeline format:
     {
@@ -1604,31 +1851,7 @@ def pipeline(
         if not steps:
             return json.dumps(response_tools.error_response("invalid_input", "Pipeline has no steps"))
 
-        default_sandbox = pipeline_def.get("sandbox")
-        results = []
-        step_results = {}  # id -> AgentResult
-        retry_counts = {}  # step_id -> count
-        monad_context = {}  # accumulates context from all monad evaluations
-
-        # Build local monad registry from inline pipeline definitions.
-        # These take precedence over globally-registered monads (~/.claude/monads/).
-        # Inline monads travel with the pipeline — no separate registration step needed.
-        inline_monads = {
-            name: MonadSpec(
-                name=name,
-                spec=defn["spec"],
-                model=defn.get("model", "claude-haiku-4-5-20251001"),
-                description=defn.get("description", ""),
-            )
-            for name, defn in pipeline_def.get("monads", {}).items()
-        }
-
-        def _resolve_monad(name: str) -> "MonadSpec | None":
-            return inline_monads.get(name) or load_monad(name)
-
-        # Resume support: reuse existing run's shared directory (and optionally skip to a step).
-        # - resume="run_id" → reuse shared dir, start from beginning (artifacts from prior run available)
-        # - resume="run_id/step_id" → reuse shared dir, skip to that step
+        # Resume support
         resume_step_id = None
         if resume:
             parts = resume.split("/", 1)
@@ -1640,222 +1863,40 @@ def pipeline(
         else:
             run_id = _generate_run_id()
 
-        # Budget and deadline tracking (monadic context)
-        budget_limit = pipeline_def.get("budget")  # total USD limit
-        spent_so_far = 0.0
-        deadline = None
-        if pipeline_def.get("deadline_seconds"):
-            deadline = time.time() + pipeline_def["deadline_seconds"]
-        classification = pipeline_def.get("classification")  # default data classification
-
-        # Create or reuse shared directory for inter-step artifacts.
+        # Create shared dir and write initial status before the thread starts
         shared_dir = os.path.join("/tmp/swarm-mcp", run_id, "shared")
         os.makedirs(shared_dir, exist_ok=True)
-        logger.info("Pipeline %s shared dir: %s", run_id, shared_dir)
+        _write_pipeline_status(run_id, "running", "pending", [], 0.0)
 
-        # Skip to resume point
-        i = 0
-        if resume_step_id:
-            for j, step in enumerate(steps):
-                if step.get("id") == resume_step_id:
-                    i = j
-                    logger.info("Skipping to step %d (%s)", j, resume_step_id)
-                    break
-        while i < len(steps):
-            step = steps[i]
-            step_id = step.get("id", f"step-{i}")
+        # Launch pipeline in background thread
+        stop_event = threading.Event()
+        with _pipelines_lock:
+            _active_pipelines[run_id] = None  # placeholder, replaced below
+            _pipeline_stop_events[run_id] = stop_event
 
-            # Check condition
-            condition = step.get("condition")
-            if condition == "prev.error":
-                if results and results[-1].error is None:
-                    # Previous step succeeded, skip this conditional step
-                    i += 1
-                    continue
+        def _bg(pd=pipeline_def, rid=run_id, rsid=resume_step_id, se=stop_event):
+            try:
+                _run_pipeline_loop(pd, rid, rsid, se)
+            except Exception:
+                logger.exception("Background pipeline %s crashed", rid)
+                _write_pipeline_status(rid, "broken", "crash", [], 0.0,
+                                       broken_reason="Unhandled exception in pipeline thread")
+            finally:
+                with _pipelines_lock:
+                    _active_pipelines.pop(rid, None)
+                    _pipeline_stop_events.pop(rid, None)
 
-            # Check max_retries for on_fail jumps (on_fail targets track count on the target step)
-            if step.get("on_fail") is None and not step.get("retry_if"):
-                max_retries = step.get("max_retries", 3)
-                if retry_counts.get(step_id, 0) >= max_retries:
-                    logger.warning("Step %s exceeded max retries (%d)", step_id, max_retries)
-                    results.append(AgentResult(
-                        agent_id=step_id, text="", exit_code=-1, duration_seconds=0,
-                        cost_usd=None, model="", output_dir="",
-                        error=f"Exceeded max retries ({max_retries})",
-                    ))
-                    break
+        t = threading.Thread(target=_bg, daemon=True, name=f"pipeline-{run_id[:8]}")
+        with _pipelines_lock:
+            _active_pipelines[run_id] = t
+        t.start()
 
-            # Build prompt with previous context
-            prompt = step["prompt"]
-            if results:
-                prev = results[-1]
-                if prev.text:
-                    prompt += f"\n\n# Context from previous step ({prev.agent_id}):\n{prev.text}"
-                if prev.error:
-                    prompt += f"\n\n# Error from previous step ({prev.agent_id}):\n{prev.error}"
-
-            # Budget guard — stop before overspending
-            if budget_limit and spent_so_far >= budget_limit:
-                results.append(AgentResult(
-                    agent_id=step_id, text="", exit_code=-1, duration_seconds=0,
-                    cost_usd=None, model="", output_dir="",
-                    error=f"Budget exhausted: spent ${spent_so_far:.2f} of ${budget_limit:.2f} limit",
-                ))
-                break
-
-            # Deadline guard — stop if time's up
-            if deadline:
-                remaining = stamps.remaining_time(deadline)
-                if remaining is not None and remaining <= 0:
-                    results.append(AgentResult(
-                        agent_id=step_id, text="", exit_code=-1, duration_seconds=0,
-                        cost_usd=None, model="", output_dir="",
-                        error="Pipeline deadline exceeded",
-                    ))
-                    break
-
-            overrides = {k: v for k, v in step.items() if k not in ("prompt", "sandbox", "id", "on_fail", "next", "condition", "max_retries", "input_type", "output_type") and v is not None}
-
-            # Propagate deadline as step timeout if tighter than step's own timeout
-            if deadline:
-                remaining = stamps.remaining_time(deadline)
-                if remaining is not None:
-                    step_timeout = overrides.get("timeout", 300)
-                    overrides["timeout"] = int(min(step_timeout, remaining))
-
-            spec = _resolve_spec(step.get("sandbox", default_sandbox), **overrides)
-
-            # Inject shared directory mount for inter-step file communication
-            shared_mount = {"host_path": shared_dir, "container_path": "/shared", "readonly": False}
-            spec = spec.merge({"mounts": (spec.mounts or []) + [shared_mount]})
-
-            result = _run_with_semaphore(prompt, spec, run_id, step_id)
-            results.append(result)
-            step_results[step_id] = result
-
-            # Update budget tracking
-            spent_so_far += result.cost_usd or 0
-
-            # Write pipeline status file after each step
-            _write_pipeline_status(run_id, "running", step_id, results, spent_so_far)
-
-            # Control flow
-            if result.error is not None:
-                on_fail = step.get("on_fail")
-                if isinstance(on_fail, dict) and "monad" in on_fail:
-                    monad_spec = _resolve_monad(on_fail["monad"])
-                    if monad_spec is None:
-                        logger.error("on_fail monad '%s' not found in registry", on_fail["monad"])
-                        break
-                    try:
-                        cont = evaluate_monad(monad_spec, pipeline_def, step, results, monad_context)
-                        monad_context.update(cont.context)
-                        _write_monad_context(shared_dir, monad_context)
-                        logger.info("Monad '%s' on_fail: action=%s target=%s reason=%s",
-                                    on_fail["monad"], cont.action, cont.target, cont.reason)
-                        new_i = _apply_monad_continuation(cont, pipeline_def, steps, step_id, run_id, results, spent_so_far)
-                        if new_i is None:
-                            break
-                        i = new_i
-                        continue
-                    except Exception as e:
-                        logger.error("Monad '%s' evaluation failed: %s", on_fail["monad"], e)
-                        break
-                elif on_fail:
-                    target_idx = next((j for j, s in enumerate(steps) if s.get("id") == on_fail), None)
-                    if target_idx is not None:
-                        retry_counts[on_fail] = retry_counts.get(on_fail, 0) + 1
-                        i = target_idx
-                        continue
-                # No on_fail handler — pipeline stops
-                break
-            else:
-                # on_success monad (if any) — evaluated before retry_if
-                on_success = step.get("on_success")
-                if isinstance(on_success, dict) and "monad" in on_success:
-                    monad_spec = _resolve_monad(on_success["monad"])
-                    if monad_spec is not None:
-                        try:
-                            cont = evaluate_monad(monad_spec, pipeline_def, step, results, monad_context)
-                            monad_context.update(cont.context)
-                            _write_monad_context(shared_dir, monad_context)
-                            logger.info("Monad '%s' on_success: action=%s target=%s",
-                                        on_success["monad"], cont.action, cont.target)
-                            new_i = _apply_monad_continuation(cont, pipeline_def, steps, step_id, run_id, results, spent_so_far)
-                            if new_i is None:
-                                break
-                            i = new_i
-                            continue
-                        except Exception as e:
-                            logger.error("Monad '%s' evaluation failed: %s", on_success["monad"], e)
-                            # Fall through to normal control flow
-                # Check retry_if: {target_step: keyword} — if output contains keyword, jump.
-                # Retry count and max_retries are tracked on the SOURCE step (the one with retry_if),
-                # so that max_retries: N on the judge step means "loop at most N times".
-                retry_if = step.get("retry_if")
-                if retry_if and isinstance(retry_if, dict) and result.text:
-                    for target, keyword in retry_if.items():
-                        if keyword in result.text:
-                            target_idx = next((j for j, s in enumerate(steps) if s.get("id") == target), None)
-                            if target_idx is not None:
-                                max_retries = step.get("max_retries", 3)
-                                current_count = retry_counts.get(step_id, 0)
-                                if current_count >= max_retries:
-                                    logger.warning("Step %s retry_if limit reached (%d), not jumping to %s",
-                                                   step_id, max_retries, target)
-                                    break  # Fall through to normal next/end
-                                retry_counts[step_id] = current_count + 1
-                                logger.info("Step %s output matched retry_if keyword '%s', jumping to %s (attempt %d/%d)",
-                                            step_id, keyword, target, retry_counts[step_id], max_retries)
-                                i = target_idx
-                                break
-                    else:
-                        # No retry_if matched — fall through to next
-                        next_step = step.get("next")
-                        if next_step:
-                            target_idx = next((j for j, s in enumerate(steps) if s.get("id") == next_step), None)
-                            if target_idx is not None:
-                                retry_counts[next_step] = retry_counts.get(next_step, 0) + 1
-                                i = target_idx
-                                continue
-                        i += 1
-                    continue
-                else:
-                    next_step = step.get("next")
-                    if next_step:
-                        target_idx = next((j for j, s in enumerate(steps) if s.get("id") == next_step), None)
-                        if target_idx is not None:
-                            retry_counts[next_step] = retry_counts.get(next_step, 0) + 1
-                            i = target_idx
-                            continue
-
-            i += 1
-
-        # Derive final pipeline status from the last result
-        last_step_id = results[-1].agent_id if results else "none"
-        if results and results[-1].error is not None:
-            final_status = "broken"
-            broken_reason = results[-1].error
-        else:
-            final_status = "done"
-            broken_reason = None
-        _write_pipeline_status(run_id, final_status, last_step_id, results, spent_so_far, broken_reason=broken_reason)
-
-        data = {
+        return json.dumps({
             "run_id": run_id,
-            "status": final_status,
-            "steps_executed": len(results),
-            "total_steps": len(steps),
-            "final": results[-1].to_ref_dict(run_id) if results else None,
-            "all_results": [r.to_ref_dict(run_id) for r in results],
-            "total_cost_usd": spent_so_far,
-            "total_duration_seconds": sum(r.duration_seconds for r in results),
-            "budget": {"spent": spent_so_far, "limit": budget_limit} if budget_limit else None,
-            "deadline_met": (time.time() < deadline) if deadline else None,
-        }
-        if broken_reason:
-            data["broken_reason"] = broken_reason
-        return json.dumps(data, default=str)
+            "status": "launched",
+            "steps": len(steps),
+            "message": f"Pipeline running in background. Use pipeline_status('{run_id}') to check progress.",
+        })
 
     except json.JSONDecodeError as e:
         return json.dumps(response_tools.error_response("json_error", f"Failed to parse pipeline: {e}"))
@@ -1884,10 +1925,82 @@ def pipeline_status(run_id: str) -> str:
             ))
         with open(status_path) as f:
             data = json.load(f)
+        # Annotate with live thread state if still in-memory
+        with _pipelines_lock:
+            if run_id in _active_pipelines:
+                data["thread_alive"] = _active_pipelines[run_id].is_alive() if _active_pipelines[run_id] else True
         return json.dumps(data)
     except Exception as e:
         logger.exception("pipeline_status failed")
         return json.dumps(response_tools.error_response("status_error", str(e)))
+
+
+@mcp.tool()
+def pipeline_kill(run_id: str) -> str:
+    """Kill a running pipeline and all its Docker containers.
+
+    Sets the pipeline's stop event (so the loop exits cleanly after the current step)
+    and immediately kills all Docker containers associated with the run.
+
+    Args:
+        run_id: The pipeline run ID to kill.
+    """
+    try:
+        killed_containers = _docker.kill_pipeline_containers(run_id)
+
+        with _pipelines_lock:
+            stop_event = _pipeline_stop_events.get(run_id)
+        if stop_event:
+            stop_event.set()
+
+        _write_pipeline_status(run_id, "killed", "killed", [], 0.0,
+                               broken_reason="Killed by pipeline_kill()")
+
+        return json.dumps({
+            "run_id": run_id,
+            "killed": True,
+            "containers_killed": len(killed_containers),
+            "container_ids": killed_containers,
+        })
+    except Exception as e:
+        logger.exception("pipeline_kill failed")
+        return json.dumps(response_tools.error_response("kill_error", str(e)))
+
+
+@mcp.tool()
+def list_pipelines() -> str:
+    """List recent pipeline runs and their current status.
+
+    Scans /tmp/swarm-mcp/ for pipeline-status.json files and returns a summary
+    of all known runs, sorted by last_updated descending. Also annotates which
+    runs have live threads in the current process.
+    """
+    try:
+        base = "/tmp/swarm-mcp"
+        runs = []
+        if os.path.isdir(base):
+            for entry in os.scandir(base):
+                if not entry.is_dir():
+                    continue
+                status_path = os.path.join(entry.path, "pipeline-status.json")
+                if not os.path.exists(status_path):
+                    continue
+                try:
+                    with open(status_path) as f:
+                        data = json.load(f)
+                    # Annotate with live thread state
+                    with _pipelines_lock:
+                        t = _active_pipelines.get(data.get("run_id", entry.name))
+                    data["thread_alive"] = t.is_alive() if t else False
+                    runs.append(data)
+                except Exception:
+                    pass
+
+        runs.sort(key=lambda r: r.get("last_updated", ""), reverse=True)
+        return json.dumps({"runs": runs, "total": len(runs)})
+    except Exception as e:
+        logger.exception("list_pipelines failed")
+        return json.dumps(response_tools.error_response("list_error", str(e)))
 
 
 # ── Sandbox Management Tools ─────────────────────────────────────
