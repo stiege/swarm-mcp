@@ -1380,8 +1380,13 @@ def _write_pipeline_status(
     results: list,
     total_cost_usd: float,
     pipeline_start: float | None = None,
+    broken_reason: str | None = None,
 ) -> None:
-    """Write a pipeline-status.json file under /tmp/swarm-mcp/<run_id>/."""
+    """Write a pipeline-status.json file under /tmp/swarm-mcp/<run_id>/.
+
+    status is one of: "running", "done", "broken".
+    broken_reason is set when status == "broken".
+    """
     status_dir = os.path.join("/tmp/swarm-mcp", run_id)
     os.makedirs(status_dir, exist_ok=True)
     status_path = os.path.join(status_dir, "pipeline-status.json")
@@ -1408,6 +1413,8 @@ def _write_pipeline_status(
         "total_duration_seconds": total_duration,
         "last_updated": now.isoformat(),
     }
+    if broken_reason is not None:
+        payload["broken_reason"] = broken_reason
 
     try:
         with open(status_path, "w") as f:
@@ -1440,9 +1447,10 @@ def pipeline(
     }
 
     Step fields: prompt (required), plus any sandbox fields (model, tools, system_prompt, etc.).
-    Control flow: on_fail (jump to step id on error), next (jump after success),
-    condition ("prev.error" = only run if previous failed), max_retries,
-    retry_if ({target_step: keyword} — jump if output contains keyword).
+    Control flow: on_fail (jump to step id on error; special value "broken" halts the pipeline
+    and writes status="broken" to the status file — use pipeline_status(run_id) to inspect),
+    next (jump after success), condition ("prev.error" = only run if previous failed),
+    max_retries, retry_if ({target_step: keyword} — jump if output contains keyword).
 
     Args:
         definition: Pipeline name (loaded from ~/.claude/pipelines/<name>.json) or inline JSON definition.
@@ -1586,7 +1594,19 @@ def pipeline(
             # Control flow
             if result.error is not None:
                 on_fail = step.get("on_fail")
-                if on_fail:
+                if on_fail == "broken":
+                    # Sentinel: advertise the pipeline as broken and halt immediately.
+                    # Use pipeline_status(run_id) to inspect the reason.
+                    broken_reason = f"Step '{step_id}' failed: {result.error}"
+                    _write_pipeline_status(run_id, "broken", step_id, results, spent_so_far, broken_reason=broken_reason)
+                    logger.error("Pipeline %s broken at step '%s': %s", run_id, step_id, result.error)
+                    results.append(AgentResult(
+                        agent_id=f"{step_id}:broken", text="", exit_code=-1,
+                        duration_seconds=0, cost_usd=None, model="", output_dir="",
+                        error=broken_reason,
+                    ))
+                    break
+                elif on_fail:
                     target_idx = next((j for j, s in enumerate(steps) if s.get("id") == on_fail), None)
                     if target_idx is not None:
                         retry_counts[on_fail] = retry_counts.get(on_fail, 0) + 1
