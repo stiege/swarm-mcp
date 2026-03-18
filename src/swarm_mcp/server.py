@@ -1473,17 +1473,17 @@ def pipeline(
                     i += 1
                     continue
 
-            # Check max_retries
-            max_retries = step.get("max_retries", 3)
-            if retry_counts.get(step_id, 0) >= max_retries:
-                logger.warning("Step %s exceeded max retries (%d)", step_id, max_retries)
-                results.append(AgentResult(
-                    agent_id=step_id, text="", exit_code=-1, duration_seconds=0,
-                    cost_usd=None, model="", output_dir="",
-                    error=f"Exceeded max retries ({max_retries})",
-                ))
-                i += 1
-                continue
+            # Check max_retries for on_fail jumps (on_fail targets track count on the target step)
+            if step.get("on_fail") is None and not step.get("retry_if"):
+                max_retries = step.get("max_retries", 3)
+                if retry_counts.get(step_id, 0) >= max_retries:
+                    logger.warning("Step %s exceeded max retries (%d)", step_id, max_retries)
+                    results.append(AgentResult(
+                        agent_id=step_id, text="", exit_code=-1, duration_seconds=0,
+                        cost_usd=None, model="", output_dir="",
+                        error=f"Exceeded max retries ({max_retries})",
+                    ))
+                    break
 
             # Build prompt with previous context
             prompt = step["prompt"]
@@ -1548,16 +1548,24 @@ def pipeline(
                 # No on_fail handler — pipeline stops
                 break
             else:
-                # Check retry_if: {target_step: keyword} — if output contains keyword, jump
+                # Check retry_if: {target_step: keyword} — if output contains keyword, jump.
+                # Retry count and max_retries are tracked on the SOURCE step (the one with retry_if),
+                # so that max_retries: N on the judge step means "loop at most N times".
                 retry_if = step.get("retry_if")
                 if retry_if and isinstance(retry_if, dict) and result.text:
                     for target, keyword in retry_if.items():
                         if keyword in result.text:
                             target_idx = next((j for j, s in enumerate(steps) if s.get("id") == target), None)
                             if target_idx is not None:
-                                retry_counts[target] = retry_counts.get(target, 0) + 1
-                                logger.info("Step %s output matched retry_if keyword '%s', jumping to %s (attempt %d)",
-                                            step_id, keyword, target, retry_counts[target])
+                                max_retries = step.get("max_retries", 3)
+                                current_count = retry_counts.get(step_id, 0)
+                                if current_count >= max_retries:
+                                    logger.warning("Step %s retry_if limit reached (%d), not jumping to %s",
+                                                   step_id, max_retries, target)
+                                    break  # Fall through to normal next/end
+                                retry_counts[step_id] = current_count + 1
+                                logger.info("Step %s output matched retry_if keyword '%s', jumping to %s (attempt %d/%d)",
+                                            step_id, keyword, target, retry_counts[step_id], max_retries)
                                 i = target_idx
                                 break
                     else:
