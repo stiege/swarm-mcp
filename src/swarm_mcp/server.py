@@ -1936,6 +1936,76 @@ def pipeline_status(run_id: str) -> str:
 
 
 @mcp.tool()
+def pipeline_artifacts(run_id: str, step_id: str | None = None) -> str:
+    """List artifacts produced by a pipeline run.
+
+    Without step_id: lists the /shared/ directory contents (inter-step files)
+    plus a summary of each step's output directory.
+
+    With step_id: lists that specific step's output directory in detail,
+    including file sizes. Use unwrap(ref) or Read() to view file contents.
+
+    Args:
+        run_id: The pipeline run ID.
+        step_id: Optional step ID to inspect. If omitted, lists shared/ and all steps.
+    """
+    try:
+        base = os.path.join("/tmp/swarm-mcp", run_id)
+        if not os.path.isdir(base):
+            return json.dumps(response_tools.error_response("not_found", f"No run directory for '{run_id}'"))
+
+        def _list_dir(path: str) -> list[dict]:
+            entries = []
+            if not os.path.isdir(path):
+                return entries
+            for entry in sorted(os.scandir(path), key=lambda e: e.name):
+                try:
+                    stat = entry.stat()
+                    entries.append({
+                        "name": entry.name,
+                        "size": stat.st_size,
+                        "path": entry.path,
+                        "is_dir": entry.is_dir(),
+                    })
+                except OSError:
+                    pass
+            return entries
+
+        if step_id:
+            step_dir = os.path.join(base, step_id)
+            if not os.path.isdir(step_dir):
+                return json.dumps(response_tools.error_response("not_found", f"No directory for step '{step_id}'"))
+            return json.dumps({"run_id": run_id, "step_id": step_id, "files": _list_dir(step_dir)})
+
+        # Full summary: shared dir + each step dir
+        shared_dir = os.path.join(base, "shared")
+        shared_files = _list_dir(shared_dir)
+
+        step_dirs = []
+        for entry in sorted(os.scandir(base), key=lambda e: e.name):
+            if not entry.is_dir() or entry.name == "shared":
+                continue
+            files = _list_dir(entry.path)
+            # Exclude home/ and workspace/ subdirs from step listing (too large)
+            visible = [f for f in files if f["name"] not in ("home", "workspace")]
+            step_dirs.append({
+                "step_id": entry.name,
+                "path": entry.path,
+                "files": visible,
+                "total_files": len(files),
+            })
+
+        return json.dumps({
+            "run_id": run_id,
+            "shared": {"path": shared_dir, "files": shared_files},
+            "steps": step_dirs,
+        })
+    except Exception as e:
+        logger.exception("pipeline_artifacts failed")
+        return json.dumps(response_tools.error_response("artifacts_error", str(e)))
+
+
+@mcp.tool()
 def pipeline_kill(run_id: str) -> str:
     """Kill a running pipeline and all its Docker containers.
 
