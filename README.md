@@ -371,7 +371,8 @@ Because the pipeline definition is a data structure that describes computation w
 |---|---|---|
 | `id` | string | Step identifier (used by `on_fail`, `next`, `retry_if`). Defaults to `step-{i}`. |
 | `prompt` | string | The task prompt. Previous step's output is appended as context automatically. |
-| `on_fail` | string | Step ID to jump to if this step fails. |
+| `on_fail` | string \| dict | Step ID to jump to on failure, or `{"monad": "Name"}` for LLM-governed decision. |
+| `on_success` | dict | `{"monad": "Name"}` — LLM-governed decision evaluated after a successful step. |
 | `next` | string | Step ID to jump to after success (instead of next sequential step). |
 | `condition` | string | `"prev.error"` — only run this step if the previous step failed. |
 | `max_retries` | int | Max times this step can be entered via `on_fail`/`next` jumps (default: 3). |
@@ -387,6 +388,11 @@ Because the pipeline definition is a data structure that describes computation w
 | `budget` | float | Total USD budget. Pipeline stops if exceeded. |
 | `deadline_seconds` | int | Wall-clock deadline. Pipeline stops if exceeded. |
 | `classification` | string | Default data classification for the run. |
+| `monads` | dict | Inline monad specs keyed by name. Per-project, version-controlled alongside the pipeline. |
+
+### Pipeline status
+
+The `pipeline` tool returns a `status` field: `"done"` (all steps completed) or `"broken"` (last result had an error, or a monad returned `broken`). A `broken_reason` field is included when applicable. Broken pipelines can be inspected via `pipeline_status`.
 
 ### The /shared/ directory
 
@@ -401,6 +407,77 @@ pipeline(definition: "research-and-report", resume: "a1b2c3d4e5f6/benchmark")
 
 - `resume: "run_id"` — reuses the shared directory from a previous run, starts from step 0.
 - `resume: "run_id/step_id"` — skips to the named step, previous artifacts available in `/shared/`.
+
+---
+
+## LLM-Governed Monads
+
+Monads are LLM-powered control-flow decisions evaluated at pipeline trigger points (`on_fail`, `on_success`). They replace hardcoded fallback logic with natural language policy — the monad spec describes the decision in plain English, and a Claude model evaluates it against the live pipeline state.
+
+Unlike the ref decoration layer (`stamps.py` — provenance, cost, classification, encryption), monads are about control flow.
+
+### Continuation algebra
+
+Every monad returns one of five actions:
+
+| Action | Effect |
+|--------|--------|
+| `next` | Proceed to the next step normally |
+| `jump` | Jump to a named step (`target` field) |
+| `halt` | Stop the pipeline cleanly (status: `done`) |
+| `broken` | Stop and mark pipeline as broken with a `reason` |
+| `patch_pipeline` | Deep-merge patch the pipeline definition, then continue |
+
+The `context` dict is free-form, accumulates across the pipeline, and is written to `/shared/monad-context.json` after each evaluation so steps can read it.
+
+### Inline pipeline monads
+
+Define monads directly in the pipeline JSON — version-controlled alongside the pipeline, no global registration needed:
+
+```json
+{
+  "name": "train-loop",
+  "monads": {
+    "TrainingFailure": {
+      "description": "Governs QLoRA train step failures",
+      "model": "claude-haiku-4-5-20251001",
+      "spec": "You govern the train step of a QLoRA fine-tuning pipeline. OOM errors → broken. NaN/loss divergence → broken. Transient errors (disk, timeout) → jump to the step before train to retry data preparation. Inspect exit_code and error output."
+    },
+    "QualityGate": {
+      "description": "Decides whether the current model iteration is good enough",
+      "model": "claude-haiku-4-5-20251001",
+      "spec": "You govern the evaluation step. If the pass rate is 5/5, return halt (we're done). If 3-4/5, jump to the training step for another iteration. If 0-2/5, return broken — the model is not converging."
+    }
+  },
+  "steps": [
+    {"id": "train",    "prompt": "...", "on_fail":    {"monad": "TrainingFailure"}},
+    {"id": "evaluate", "prompt": "...", "on_success": {"monad": "QualityGate"}}
+  ]
+}
+```
+
+Global fallback: `~/.claude/monads/` (managed by `save_monad_spec` / `list_monad_specs`). Inline definitions take priority over global ones.
+
+### The patch_pipeline action
+
+A monad can surgically modify the running pipeline definition. This uses JSON Merge Patch (RFC 7396) — null values delete keys, objects recurse, scalars/arrays replace:
+
+```json
+{
+  "action": "patch_pipeline",
+  "pipeline_patch": {
+    "steps": [
+      {"id": "train", "prompt": "Run training with --batch-size 4 instead of 8"}
+    ]
+  },
+  "context": {"adjusted_batch_size": true},
+  "reason": "Detected instability in loss curve — reducing batch size"
+}
+```
+
+### monad_context
+
+The context dict from each monad continuation is merged into a running `monad_context` that persists across the entire pipeline. Written to `/shared/monad-context.json` so steps can read it. Use it to pass structured observations between monads (e.g., iteration count, last loss value, retry history).
 
 ---
 
