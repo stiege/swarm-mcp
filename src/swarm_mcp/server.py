@@ -1577,10 +1577,11 @@ def pipeline(
     }
 
     Step fields: prompt (required), plus any sandbox fields (model, tools, system_prompt, etc.).
-    Control flow: on_fail (jump to step id on error; special value "broken" halts the pipeline
-    and writes status="broken" to the status file — use pipeline_status(run_id) to inspect),
+    Control flow: on_fail (step id to jump to on error, or {"monad": "name"} for LLM-governed
+    recovery — see save_monad_spec), on_success ({"monad": "name"} for LLM-governed continuation),
     next (jump after success), condition ("prev.error" = only run if previous failed),
     max_retries, retry_if ({target_step: keyword} — jump if output contains keyword).
+    Any unhandled failure terminates the pipeline with status="broken".
 
     Args:
         definition: Pipeline name (loaded from ~/.claude/pipelines/<name>.json) or inline JSON definition.
@@ -1608,6 +1609,22 @@ def pipeline(
         step_results = {}  # id -> AgentResult
         retry_counts = {}  # step_id -> count
         monad_context = {}  # accumulates context from all monad evaluations
+
+        # Build local monad registry from inline pipeline definitions.
+        # These take precedence over globally-registered monads (~/.claude/monads/).
+        # Inline monads travel with the pipeline — no separate registration step needed.
+        inline_monads = {
+            name: MonadSpec(
+                name=name,
+                spec=defn["spec"],
+                model=defn.get("model", "claude-haiku-4-5-20251001"),
+                description=defn.get("description", ""),
+            )
+            for name, defn in pipeline_def.get("monads", {}).items()
+        }
+
+        def _resolve_monad(name: str) -> "MonadSpec | None":
+            return inline_monads.get(name) or load_monad(name)
 
         # Resume support: reuse existing run's shared directory (and optionally skip to a step).
         # - resume="run_id" → reuse shared dir, start from beginning (artifacts from prior run available)
@@ -1726,7 +1743,7 @@ def pipeline(
             if result.error is not None:
                 on_fail = step.get("on_fail")
                 if isinstance(on_fail, dict) and "monad" in on_fail:
-                    monad_spec = load_monad(on_fail["monad"])
+                    monad_spec = _resolve_monad(on_fail["monad"])
                     if monad_spec is None:
                         logger.error("on_fail monad '%s' not found in registry", on_fail["monad"])
                         break
@@ -1744,16 +1761,6 @@ def pipeline(
                     except Exception as e:
                         logger.error("Monad '%s' evaluation failed: %s", on_fail["monad"], e)
                         break
-                elif on_fail == "broken":
-                    broken_reason = f"Step '{step_id}' failed: {result.error}"
-                    _write_pipeline_status(run_id, "broken", step_id, results, spent_so_far, broken_reason=broken_reason)
-                    logger.error("Pipeline %s broken at step '%s': %s", run_id, step_id, result.error)
-                    results.append(AgentResult(
-                        agent_id=f"{step_id}:broken", text="", exit_code=-1,
-                        duration_seconds=0, cost_usd=None, model="", output_dir="",
-                        error=broken_reason,
-                    ))
-                    break
                 elif on_fail:
                     target_idx = next((j for j, s in enumerate(steps) if s.get("id") == on_fail), None)
                     if target_idx is not None:
@@ -1766,7 +1773,7 @@ def pipeline(
                 # on_success monad (if any) — evaluated before retry_if
                 on_success = step.get("on_success")
                 if isinstance(on_success, dict) and "monad" in on_success:
-                    monad_spec = load_monad(on_success["monad"])
+                    monad_spec = _resolve_monad(on_success["monad"])
                     if monad_spec is not None:
                         try:
                             cont = evaluate_monad(monad_spec, pipeline_def, step, results, monad_context)
@@ -1824,8 +1831,19 @@ def pipeline(
 
             i += 1
 
+        # Derive final pipeline status from the last result
+        last_step_id = results[-1].agent_id if results else "none"
+        if results and results[-1].error is not None:
+            final_status = "broken"
+            broken_reason = results[-1].error
+        else:
+            final_status = "done"
+            broken_reason = None
+        _write_pipeline_status(run_id, final_status, last_step_id, results, spent_so_far, broken_reason=broken_reason)
+
         data = {
             "run_id": run_id,
+            "status": final_status,
             "steps_executed": len(results),
             "total_steps": len(steps),
             "final": results[-1].to_ref_dict(run_id) if results else None,
@@ -1835,6 +1853,8 @@ def pipeline(
             "budget": {"spent": spent_so_far, "limit": budget_limit} if budget_limit else None,
             "deadline_met": (time.time() < deadline) if deadline else None,
         }
+        if broken_reason:
+            data["broken_reason"] = broken_reason
         return json.dumps(data, default=str)
 
     except json.JSONDecodeError as e:
