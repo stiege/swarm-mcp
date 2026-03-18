@@ -37,6 +37,7 @@ Environment variables
     Project root to register on startup (handled by the registry module).
 """
 
+import datetime
 import json
 import logging
 import os
@@ -1372,6 +1373,49 @@ def decrypt(ref: str, key_id: str) -> str:
 # ── Pipeline Tool (Free Monad interpreter) ───────────────────────
 
 
+def _write_pipeline_status(
+    run_id: str,
+    status: str,
+    current_step: str,
+    results: list,
+    total_cost_usd: float,
+    pipeline_start: float | None = None,
+) -> None:
+    """Write a pipeline-status.json file under /tmp/swarm-mcp/<run_id>/."""
+    status_dir = os.path.join("/tmp/swarm-mcp", run_id)
+    os.makedirs(status_dir, exist_ok=True)
+    status_path = os.path.join(status_dir, "pipeline-status.json")
+
+    steps_completed = [
+        {
+            "agent_id": r.agent_id,
+            "exit_code": r.exit_code,
+            "duration": r.duration_seconds,
+            "cost": r.cost_usd,
+        }
+        for r in results
+    ]
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    total_duration = sum(r.duration_seconds for r in results)
+
+    payload = {
+        "run_id": run_id,
+        "status": status,
+        "current_step": current_step,
+        "steps_completed": steps_completed,
+        "total_cost_usd": total_cost_usd,
+        "total_duration_seconds": total_duration,
+        "last_updated": now.isoformat(),
+    }
+
+    try:
+        with open(status_path, "w") as f:
+            json.dump(payload, f, default=str)
+    except OSError:
+        logger.warning("Failed to write pipeline status file: %s", status_path)
+
+
 @mcp.tool()
 def pipeline(
     definition: str,
@@ -1536,6 +1580,9 @@ def pipeline(
             # Update budget tracking
             spent_so_far += result.cost_usd or 0
 
+            # Write pipeline status file after each step
+            _write_pipeline_status(run_id, "running", step_id, results, spent_so_far)
+
             # Control flow
             if result.error is not None:
                 on_fail = step.get("on_fail")
@@ -1608,6 +1655,32 @@ def pipeline(
     except Exception as e:
         logger.exception("pipeline failed")
         return json.dumps(response_tools.error_response("pipeline_error", str(e)))
+
+
+@mcp.tool()
+def pipeline_status(run_id: str) -> str:
+    """Return the current status of a running or completed pipeline.
+
+    Reads /tmp/swarm-mcp/<run_id>/pipeline-status.json and returns its contents.
+    The status file is written after each step completes.
+
+    Args:
+        run_id: The pipeline run ID returned by the pipeline() tool.
+    """
+    try:
+        status_path = os.path.join("/tmp/swarm-mcp", run_id, "pipeline-status.json")
+        if not os.path.exists(status_path):
+            return json.dumps(response_tools.error_response(
+                "not_found",
+                f"No status file found for run_id '{run_id}'. "
+                "The pipeline may not have started yet or the run_id is incorrect.",
+            ))
+        with open(status_path) as f:
+            data = json.load(f)
+        return json.dumps(data)
+    except Exception as e:
+        logger.exception("pipeline_status failed")
+        return json.dumps(response_tools.error_response("status_error", str(e)))
 
 
 # ── Sandbox Management Tools ─────────────────────────────────────
