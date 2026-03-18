@@ -48,7 +48,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 from mcp.server.fastmcp import FastMCP
 
-from . import monads, tools as response_tools
+from . import stamps, tools as response_tools
+from . import monads
+from .monads import MonadSpec, evaluate_monad, save_monad, load_monad, list_monads, deep_merge
 from .agent import AgentResult, run_agent
 from .sandbox import SandboxSpec, list_sandboxes, load_sandbox, resolve_sandbox, save_sandbox
 from . import registry
@@ -952,7 +954,7 @@ def filter(
                         break
 
             enriched = dict(ref_obj) if isinstance(ref_obj, dict) else {"ref": ref_obj}
-            monads.stamp_validated(enriched, declared_type, verdict, f"{run_id}/{result.agent_id}")
+            stamps.stamp_validated(enriched, declared_type, verdict, f"{run_id}/{result.agent_id}")
 
             if verdict == "VALID":
                 valid_refs.append(enriched)
@@ -1101,13 +1103,13 @@ def retry(
 
                 # Stamp as validated
                 ref = result.to_ref_dict(run_id)
-                monads.stamp_validated(ref, declared_type, verdict, f"{run_id}/validate-{attempt}")
-                monads.stamp_retry(ref, attempt, max_attempts, prior_errors)
+                stamps.stamp_validated(ref, declared_type, verdict, f"{run_id}/validate-{attempt}")
+                stamps.stamp_retry(ref, attempt, max_attempts, prior_errors)
                 return json.dumps(ref, default=str)
 
             # Success without type checking
             ref = result.to_ref_dict(run_id)
-            monads.stamp_retry(ref, attempt, max_attempts, prior_errors)
+            stamps.stamp_retry(ref, attempt, max_attempts, prior_errors)
             return json.dumps(ref, default=str)
 
         # All attempts failed
@@ -1146,7 +1148,7 @@ def guard(
             ref_data = {"ref": ref}
 
         if check == "validated":
-            if not monads.is_validated(ref_data, value):
+            if not stamps.is_validated(ref_data, value):
                 validated_as = ref_data.get("validated_as", "not validated")
                 return json.dumps(response_tools.error_response(
                     "guard_failed",
@@ -1154,7 +1156,7 @@ def guard(
                 ))
 
         elif check == "budget":
-            if not monads.check_budget(ref_data):
+            if not stamps.check_budget(ref_data):
                 budget = ref_data.get("budget", {})
                 return json.dumps(response_tools.error_response(
                     "guard_failed",
@@ -1164,12 +1166,12 @@ def guard(
         elif check == "classification":
             if value:
                 mcps = json.loads(value) if value.startswith("[") else [value]
-                allowed, reason = monads.check_classification(ref_data, mcps)
+                allowed, reason = stamps.check_classification(ref_data, mcps)
                 if not allowed:
                     return json.dumps(response_tools.error_response("guard_failed", reason))
 
         elif check == "encrypted":
-            can_access, reason = monads.check_encrypted(ref_data, value)
+            can_access, reason = stamps.check_encrypted(ref_data, value)
             if not can_access:
                 return json.dumps(response_tools.error_response("guard_failed", reason))
 
@@ -1218,7 +1220,7 @@ def classify(
         if denied_mcps:
             denied = json.loads(denied_mcps) if isinstance(denied_mcps, str) else denied_mcps
 
-        monads.stamp_classification(ref_data, level, allowed, denied)
+        stamps.stamp_classification(ref_data, level, allowed, denied)
 
         # Also write classification to the result.json on disk
         ref_str = ref_data.get("ref", "")
@@ -1259,12 +1261,12 @@ def encrypt(ref: str) -> str:
 
         ref_str = ref_data.get("ref", ref)
 
-        if monads.is_encrypted(ref_data):
+        if stamps.is_encrypted(ref_data):
             return json.dumps(response_tools.error_response("already_encrypted", f"Ref is already encrypted (key_id: {ref_data['encrypted']['key_id']})"))
 
         # Generate key and encrypt the text on disk
-        key_id, key = monads._generate_key()
-        monads._store_key(key_id, key)
+        key_id, key = stamps._generate_key()
+        stamps._store_key(key_id, key)
 
         result_file = os.path.join("/tmp/swarm-mcp", ref_str, "result.json")
         if not os.path.exists(result_file):
@@ -1277,7 +1279,7 @@ def encrypt(ref: str) -> str:
         if not text:
             return json.dumps(response_tools.error_response("empty", "Ref has no text to encrypt"))
 
-        ciphertext = monads.encrypt_text(text, key)
+        ciphertext = stamps.encrypt_text(text, key)
         result_data["text"] = ciphertext.decode()
         result_data["encrypted"] = True
         with open(result_file, "w") as f:
@@ -1288,7 +1290,7 @@ def encrypt(ref: str) -> str:
         if os.path.exists(output_md):
             os.remove(output_md)
 
-        monads.stamp_encrypted(ref_data, key_id)
+        stamps.stamp_encrypted(ref_data, key_id)
 
         # Persist encryption metadata back to result.json
         with open(result_file) as f:
@@ -1344,13 +1346,13 @@ def decrypt(ref: str, key_id: str) -> str:
             return json.dumps(response_tools.error_response("wrong_key", f"Key mismatch: expected {expected_key_id}, got {key_id}"))
 
         # Load the key
-        key = monads._load_key(key_id)
+        key = stamps._load_key(key_id)
         if key is None:
             return json.dumps(response_tools.error_response("key_not_found", f"Key '{key_id}' not found"))
 
         # Decrypt
         ciphertext = result_data["text"].encode()
-        plaintext = monads.decrypt_text(ciphertext, key)
+        plaintext = stamps.decrypt_text(ciphertext, key)
 
         # Write decrypted text to output.md (not back to result.json — keeps ciphertext at rest)
         output_path = os.path.join("/tmp/swarm-mcp", ref_str, "output.md")
@@ -1423,6 +1425,134 @@ def _write_pipeline_status(
         logger.warning("Failed to write pipeline status file: %s", status_path)
 
 
+def _write_monad_context(shared_dir: str, monad_context: dict) -> None:
+    """Persist accumulated monad context to /shared/monad-context.json."""
+    path = os.path.join(shared_dir, "monad-context.json")
+    try:
+        with open(path, "w") as f:
+            json.dump(monad_context, f, indent=2, default=str)
+    except OSError:
+        logger.warning("Failed to write monad context: %s", path)
+
+
+def _apply_monad_continuation(
+    cont: monads.MonadContinuation,
+    pipeline_def: dict,
+    steps: list,
+    current_step_id: str,
+    run_id: str,
+    results: list,
+    spent_so_far: float,
+) -> "int | None":
+    """Apply a monad continuation. Returns the new step index, or None to halt.
+
+    Mutates pipeline_def and steps in-place when action is patch_pipeline.
+    """
+    if cont.action == "next":
+        for j, s in enumerate(steps):
+            if s.get("id") == current_step_id:
+                return j + 1
+        return len(steps)
+
+    elif cont.action == "jump":
+        target_idx = next((j for j, s in enumerate(steps) if s.get("id") == cont.target), None)
+        if target_idx is not None:
+            return target_idx
+        logger.warning("Monad jump target '%s' not found", cont.target)
+        return None
+
+    elif cont.action == "halt":
+        logger.info("Monad halt: %s", cont.reason)
+        return None
+
+    elif cont.action == "broken":
+        broken_reason = cont.reason or "Monad signalled broken pipeline"
+        _write_pipeline_status(run_id, "broken", current_step_id, results, spent_so_far, broken_reason=broken_reason)
+        logger.error("Pipeline broken by monad: %s", broken_reason)
+        return None
+
+    elif cont.action == "patch_pipeline":
+        if cont.pipeline_patch:
+            patched = deep_merge(pipeline_def, cont.pipeline_patch)
+            pipeline_def.clear()
+            pipeline_def.update(patched)
+            steps[:] = pipeline_def.get("steps", [])
+            for j, s in enumerate(steps):
+                if s.get("id") == current_step_id:
+                    return j + 1
+            return 0
+        # Empty patch — continue normally
+        for j, s in enumerate(steps):
+            if s.get("id") == current_step_id:
+                return j + 1
+        return len(steps)
+
+    else:
+        logger.warning("Unknown monad action '%s', halting", cont.action)
+        return None
+
+
+@mcp.tool()
+def save_monad_spec(
+    name: str,
+    spec: str,
+    description: str = "",
+    model: str = "claude-haiku-4-5-20251001",
+) -> str:
+    """Register an LLM-governed monad for use in pipeline control flow.
+
+    Monads are evaluated at trigger points (on_fail, on_success) to decide the
+    continuation. The spec is a natural language description of what the monad
+    should decide. The monad LLM returns one of:
+
+    - next            — proceed normally
+    - jump(target)    — jump to a named step
+    - halt            — stop the pipeline cleanly
+    - broken(reason)  — stop and write broken status (visible via pipeline_status)
+    - patch_pipeline  — deep-merge patch the pipeline definition and continue
+
+    Each continuation also carries a free-form ``context`` dict that accumulates
+    across the pipeline and is written to /shared/monad-context.json.
+
+    Reference a monad in a pipeline step:
+        "on_fail": {"monad": "Failure"}
+        "on_success": {"monad": "Validation"}
+
+    Args:
+        name: Unique monad name used to reference it from pipeline steps.
+        spec: Natural language description telling the LLM what to decide.
+        description: One-line summary shown in list_monad_specs.
+        model: Claude model for evaluation (default: haiku).
+    """
+    try:
+        monad = MonadSpec(name=name, spec=spec, description=description, model=model)
+        save_monad(monad)
+        return json.dumps({"saved": name, "model": model, "description": description})
+    except Exception as e:
+        return json.dumps(response_tools.error_response("monad_save_error", str(e)))
+
+
+@mcp.tool()
+def list_monad_specs() -> str:
+    """List all registered LLM-governed monads.
+
+    Returns each monad's name, description, model, and a preview of its spec.
+    """
+    try:
+        specs = list_monads()
+        return json.dumps([
+            {
+                "name": s.name,
+                "description": s.description,
+                "model": s.model,
+                "spec_preview": s.spec[:120],
+            }
+            for s in specs
+        ])
+    except Exception as e:
+        return json.dumps(response_tools.error_response("monad_list_error", str(e)))
+
+
 @mcp.tool()
 def pipeline(
     definition: str,
@@ -1477,6 +1607,7 @@ def pipeline(
         results = []
         step_results = {}  # id -> AgentResult
         retry_counts = {}  # step_id -> count
+        monad_context = {}  # accumulates context from all monad evaluations
 
         # Resume support: reuse existing run's shared directory (and optionally skip to a step).
         # - resume="run_id" → reuse shared dir, start from beginning (artifacts from prior run available)
@@ -1557,7 +1688,7 @@ def pipeline(
 
             # Deadline guard — stop if time's up
             if deadline:
-                remaining = monads.remaining_time(deadline)
+                remaining = stamps.remaining_time(deadline)
                 if remaining is not None and remaining <= 0:
                     results.append(AgentResult(
                         agent_id=step_id, text="", exit_code=-1, duration_seconds=0,
@@ -1570,7 +1701,7 @@ def pipeline(
 
             # Propagate deadline as step timeout if tighter than step's own timeout
             if deadline:
-                remaining = monads.remaining_time(deadline)
+                remaining = stamps.remaining_time(deadline)
                 if remaining is not None:
                     step_timeout = overrides.get("timeout", 300)
                     overrides["timeout"] = int(min(step_timeout, remaining))
@@ -1594,9 +1725,26 @@ def pipeline(
             # Control flow
             if result.error is not None:
                 on_fail = step.get("on_fail")
-                if on_fail == "broken":
-                    # Sentinel: advertise the pipeline as broken and halt immediately.
-                    # Use pipeline_status(run_id) to inspect the reason.
+                if isinstance(on_fail, dict) and "monad" in on_fail:
+                    monad_spec = load_monad(on_fail["monad"])
+                    if monad_spec is None:
+                        logger.error("on_fail monad '%s' not found in registry", on_fail["monad"])
+                        break
+                    try:
+                        cont = evaluate_monad(monad_spec, pipeline_def, step, results, monad_context)
+                        monad_context.update(cont.context)
+                        _write_monad_context(shared_dir, monad_context)
+                        logger.info("Monad '%s' on_fail: action=%s target=%s reason=%s",
+                                    on_fail["monad"], cont.action, cont.target, cont.reason)
+                        new_i = _apply_monad_continuation(cont, pipeline_def, steps, step_id, run_id, results, spent_so_far)
+                        if new_i is None:
+                            break
+                        i = new_i
+                        continue
+                    except Exception as e:
+                        logger.error("Monad '%s' evaluation failed: %s", on_fail["monad"], e)
+                        break
+                elif on_fail == "broken":
                     broken_reason = f"Step '{step_id}' failed: {result.error}"
                     _write_pipeline_status(run_id, "broken", step_id, results, spent_so_far, broken_reason=broken_reason)
                     logger.error("Pipeline %s broken at step '%s': %s", run_id, step_id, result.error)
@@ -1615,6 +1763,25 @@ def pipeline(
                 # No on_fail handler — pipeline stops
                 break
             else:
+                # on_success monad (if any) — evaluated before retry_if
+                on_success = step.get("on_success")
+                if isinstance(on_success, dict) and "monad" in on_success:
+                    monad_spec = load_monad(on_success["monad"])
+                    if monad_spec is not None:
+                        try:
+                            cont = evaluate_monad(monad_spec, pipeline_def, step, results, monad_context)
+                            monad_context.update(cont.context)
+                            _write_monad_context(shared_dir, monad_context)
+                            logger.info("Monad '%s' on_success: action=%s target=%s",
+                                        on_success["monad"], cont.action, cont.target)
+                            new_i = _apply_monad_continuation(cont, pipeline_def, steps, step_id, run_id, results, spent_so_far)
+                            if new_i is None:
+                                break
+                            i = new_i
+                            continue
+                        except Exception as e:
+                            logger.error("Monad '%s' evaluation failed: %s", on_success["monad"], e)
+                            # Fall through to normal control flow
                 # Check retry_if: {target_step: keyword} — if output contains keyword, jump.
                 # Retry count and max_retries are tracked on the SOURCE step (the one with retry_if),
                 # so that max_retries: N on the judge step means "loop at most N times".

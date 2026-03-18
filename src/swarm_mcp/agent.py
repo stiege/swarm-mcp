@@ -28,7 +28,7 @@ import time
 from dataclasses import asdict, dataclass
 
 from . import docker
-from .monads import enrich_ref
+from .stamps import enrich_ref
 from .sandbox import SandboxSpec
 from .types import build_type_context
 
