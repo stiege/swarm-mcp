@@ -78,6 +78,11 @@ class SandboxSpec:
     network:
         ``True`` (default) enables host networking so the agent can reach the
         Anthropic API.  ``False`` isolates the container completely.
+    network_mode:
+        Explicit Docker ``--network`` value (e.g. ``"my-restricted-net"``).
+        When set, overrides the ``network`` bool.  Use this to reference a
+        pre-configured Docker network with custom routing rules (e.g. one that
+        only allows outbound to ``api.anthropic.com``).
 
     Resources
     ---------
@@ -120,6 +125,7 @@ class SandboxSpec:
 
     # Network
     network: bool = True  # True = host network (needed for API), False = none
+    network_mode: str | None = None  # Explicit --network value; overrides network bool when set
 
     # Resources
     memory: str | None = None  # e.g. "2g"

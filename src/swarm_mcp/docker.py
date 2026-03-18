@@ -134,7 +134,7 @@ def get_docker_run_cmd(
     cmd = [
         "docker", "run", "--rm", "-i",
         "--name", container_name,
-        f"--network={'host' if spec.network else 'none'}",
+        f"--network={spec.network_mode if spec.network_mode else ('host' if spec.network else 'none')}",
         "-v", f"{home_dir}:{CONTAINER_HOME}",
         "-v", f"{output_dir}:/output:rw",
         "-e", f"HOME={CONTAINER_HOME}",
