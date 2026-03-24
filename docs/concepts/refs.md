@@ -1,4 +1,4 @@
-# Refs & The Monad Stack
+# Refs & Stamps
 
 A **ref** is the fundamental unit of data exchange in swarm-mcp. Instead of passing raw text between combinators, every agent execution produces a ref — a lightweight pointer to results stored on disk, enriched with metadata that travels alongside the data.
 
@@ -75,9 +75,9 @@ The original prompt sent to the agent. Stored so that you can reconstruct exactl
 
 ---
 
-## The Monad Stack
+## Stamps
 
-After a raw ref is produced by an agent execution, `enrich_ref()` applies a stack of **monad-style stamps** — each one adds a new layer of metadata without mutating the fields already present. You can think of each stamp as wrapping the ref in a new context that downstream combinators can inspect and enforce.
+After a raw ref is produced by an agent execution, `enrich_ref()` applies a series of **stamps** — each one adds metadata fields without mutating the fields already present. Downstream combinators can inspect and enforce these fields without unwrapping any content.
 
 The stamps are applied in this order:
 
@@ -183,7 +183,7 @@ Stamps encryption provenance so consumers know whether they need to decrypt befo
 
 ## A Fully Enriched Ref
 
-After the full monad stack has been applied, a ref might look like this:
+After all stamps have been applied, a ref might look like this:
 
 ```json
 {

@@ -2,7 +2,7 @@
 
 A **pipeline** is a sequence of agent steps that executes as a single, resumable, cost-tracked unit. Pipelines model multi-stage workflows — test/fix loops, summarise-then-verify chains, ETL transformations — without requiring you to write any glue code.
 
-Under the hood the pipeline interpreter is a **free monad**: the JSON definition is pure data that describes a computation, and the interpreter decides at runtime how to sequence, branch, retry, and resume each step. This separation means you can store, version, and load pipeline definitions from files, pass them as strings, or generate them programmatically.
+The pipeline definition is pure data — JSON that describes what should happen without executing it. The interpreter decides at runtime how to sequence, branch, retry, and resume each step. This separation means you can store, version, and load pipeline definitions from files, pass them as strings, or generate them programmatically.
 
 ---
 
@@ -30,6 +30,7 @@ pipeline(definition: str, resume?: str) → PipelineResult
   "budget": 2.50,
   "deadline_seconds": 300,
   "classification": "internal",
+  "governors": { ... },
   "steps": [ ... ]
 }
 ```
@@ -41,6 +42,7 @@ pipeline(definition: str, resume?: str) → PipelineResult
 | `budget` | number | unlimited | Maximum USD to spend across all steps; stops pipeline when reached |
 | `deadline_seconds` | number | unlimited | Wall-clock time limit for the whole pipeline |
 | `classification` | string | — | Informational tag passed through to results |
+| `governors` | object | — | Inline [governor specs](governors.md) keyed by name; per-project, version-controlled alongside the pipeline |
 | `steps` | array | required | Ordered list of step objects |
 
 ---
@@ -60,7 +62,8 @@ Each step is a JSON object. `id` and `prompt` are always required; all other fie
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `on_fail` | string | stop | Step `id` to jump to when this step fails (non-zero exit or error text) |
+| `on_fail` | string \| object | stop | Step `id` to jump to on failure, or `{"governor": "Name"}` for an [LLM-governed decision](governors.md) |
+| `on_success` | object | — | `{"governor": "Name"}` — [LLM-governed decision](governors.md) evaluated after a successful step |
 | `next` | string | next in array | Step `id` to jump to after this step succeeds |
 | `condition` | string | — | `"prev.error"` — only execute this step if the **previous** step failed |
 | `max_retries` | integer | 3 | How many times to retry this step before calling it a failure |
@@ -302,11 +305,29 @@ This five-step pipeline runs tests, attempts an automatic fix on failure, re-run
 
 ---
 
+## Async Execution
+
+`pipeline()` launches the run in a background thread and returns immediately with a `run_id`. Use the companion tools to monitor and control the run:
+
+| Tool | Description |
+|---|---|
+| `pipeline_status(run_id)` | Poll the current status from disk. Returns step-by-step progress, cost so far, and the current `status` field. |
+| `pipeline_kill(run_id)` | Set the stop event and kill all Docker containers for the run. The pipeline halts at the next step boundary. |
+| `list_pipelines()` | Scan `/tmp/swarm-mcp/` and return all known runs with their current status and last-active timestamp. |
+| `pipeline_artifacts(run_id, step_id?)` | List files in the `/shared/` directory and each step's output directory. Pass `step_id` to see detailed file sizes for a specific step. |
+
+Resume still works the same way — pass `resume="<run_id>"` or `resume="<run_id>/<step_id>"` to restart from any point.
+
+---
+
 ## Return Value
+
+`pipeline()` returns a status handle immediately. The same structure is also written to disk and returned by `pipeline_status()` when the run completes:
 
 ```json
 {
   "run_id": "a3f9c2d1",
+  "status": "done",
   "steps_executed": 4,
   "total_steps": 5,
   "final": "Coverage: 87%",
@@ -321,6 +342,8 @@ This five-step pipeline runs tests, attempts an automatic fix on failure, re-run
 | Field | Description |
 |---|---|
 | `run_id` | Unique identifier for this run; use for resume |
+| `status` | `"done"` (all steps completed) or `"broken"` (a step failed or a governor returned `broken`) |
+| `broken_reason` | Human-readable reason; present when `status` is `"broken"` |
 | `steps_executed` | Number of steps that actually ran |
 | `total_steps` | Total steps in the definition |
 | `final` | Text output of the last step that executed |
@@ -332,8 +355,30 @@ This five-step pipeline runs tests, attempts an automatic fix on failure, re-run
 
 ---
 
+## Governors
+
+The `on_fail` and `on_success` fields accept a governor reference instead of a plain step ID:
+
+```json
+{
+  "id": "train",
+  "prompt": "Run QLoRA fine-tuning for one epoch",
+  "on_fail": {"governor": "TrainingFailure"},
+  "on_success": {"governor": "QualityGate"}
+}
+```
+
+When triggered, a Claude model evaluates the full pipeline state against the governor's natural language spec and returns a continuation: `next`, `jump`, `halt`, `broken`, or `patch_pipeline`. This replaces hardcoded fallback logic with policy described in plain English.
+
+Define governors inline in the pipeline JSON under the top-level `governors` key — they are version-controlled alongside the pipeline definition and take priority over global governors in `~/.claude/governors/`.
+
+See [Governors](governors.md) for the full reference.
+
+---
+
 ## Related Pages
 
+- [Governors](governors.md) — LLM-governed control flow and the continuation algebra
 - [Sandboxes](sandboxes.md) — configure the Docker environment for each step
 - [Resources](resources.md) — GPU and named resource pools within pipeline steps
 - [Combinators](combinators.md) — `par` and `map` for fan-out within a step

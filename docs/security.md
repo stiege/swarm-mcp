@@ -139,7 +139,7 @@ Use `guard()` to ensure a ref is encrypted before passing it to another tool:
 
 ```python
 guard(ref="a1b2c3/agent-0", check="encrypted")
-# Raises an error if the ref does not have the "encrypted" monad set.
+# Raises an error if the ref does not have the "encrypted" stamp set.
 ```
 
 This is useful in pipelines where a sensitive generation step must encrypt
@@ -220,10 +220,10 @@ guard(ref="a1b2c3/agent-0", check="exists")
 
 | Check | Passes when |
 |---|---|
-| `encrypted` | The ref has the `encrypted` monad (i.e. `encrypt()` was called) |
+| `encrypted` | The ref has the `encrypted` stamp (i.e. `encrypt()` was called) |
 | `validated` | The ref has `validation_verdict == "VALID"` |
 | `classification` | The ref's classification level matches `value` |
-| `budget` | The ref's budget monad shows remaining budget >= 0 |
+| `budget` | The ref's budget stamp shows remaining budget >= 0 |
 | `exists` | The ref's output directory and `result.json` are present on disk |
 
 ### Example: encrypt-then-process gate
@@ -261,5 +261,5 @@ classify(ref=ref["ref"], level="restricted", allowed_mcps='["redaction-mcp"]')
 
 !!! note "See also"
     - [Observability](observability.md) — inspect artifact logs to audit what agents accessed
-    - [Concepts: Refs](concepts/refs.md) — full monad stack including Encrypted and Classified layers
+    - [Concepts: Refs](concepts/refs.md) — full stamp system including Encrypted and Classified stamps
     - [Concepts: Sandboxes](concepts/sandboxes.md) — full sandbox spec including `network`, `tools`, `mounts`

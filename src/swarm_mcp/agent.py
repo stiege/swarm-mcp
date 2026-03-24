@@ -18,7 +18,6 @@ Timeout handling ensures partial output is captured even when a container
 is killed mid-run.
 """
 
-import hashlib
 import json
 import logging
 import os
@@ -84,9 +83,9 @@ class AgentResult:
 
         Args:
             run_id: Run identifier used to build the ``"ref"`` path and passed
-                to :func:`~swarm_mcp.monads.enrich_ref`.
-            **monadic_context: Optional keyword arguments forwarded to
-                :func:`~swarm_mcp.monads.enrich_ref` (e.g. ``budget_limit``,
+                to :func:`~swarm_mcp.stamps.enrich_ref`.
+            **stamp_kwargs: Optional keyword arguments forwarded to
+                :func:`~swarm_mcp.stamps.enrich_ref` (e.g. ``budget_limit``,
                 ``classification``, ``encrypt``).
 
         Returns:

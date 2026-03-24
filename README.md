@@ -17,9 +17,9 @@ swarm-mcp is an MCP server that lets your Claude session spawn other Claude agen
 
 - **True Docker isolation per agent.** Every agent gets its own container with its own filesystem, network policy, memory limit, and CPU quota. No shared state leaks between agents. A rogue `rm -rf /` in one container doesn't touch anything else.
 
-- **Monadic ref architecture (lazy by default).** Combinators return refs — small JSON objects with metadata (cost, duration, exit code, provenance hash). The actual text stays on disk in `/tmp/swarm-mcp/{run_id}/{agent_id}/result.json`. Call `unwrap` when you actually need the content. This keeps the MCP protocol fast and prevents context window bloat.
+- **Lazy refs (metadata on the wire, text on disk).** Combinators return refs — small JSON objects with metadata (cost, duration, exit code, provenance hash). The actual text stays on disk in `/tmp/swarm-mcp/{run_id}/{agent_id}/result.json`. Call `unwrap` when you actually need the content. This keeps the MCP protocol fast and prevents context window bloat.
 
-- **Free monad pipelines (computation as data).** The `pipeline` tool interprets a JSON definition — steps with `on_fail` handlers, `condition` guards, `retry_if` loops, and `next` jumps. The pipeline is data you can store, version, resume, and share. The interpreter handles control flow, budget tracking, and inter-step communication via a shared `/shared/` directory.
+- **Data-driven pipelines.** The `pipeline` tool interprets a JSON definition — steps with `on_fail` handlers, `condition` guards, `retry_if` loops, and `next` jumps. The pipeline definition is data: store it in git, version it, resume it from any step, generate it programmatically. The interpreter handles container lifecycle, budget tracking, and inter-step state via a shared `/shared/` directory.
 
 - **GPU and resource semaphores.** Named resource pools (`gpu`, `database`, `api`, anything) are semaphores with configurable capacity. Agents queue for resources before execution. A single GPU doesn't get double-booked; a rate-limited API doesn't get hammered.
 
@@ -309,13 +309,11 @@ par(tasks: '[{"prompt": "...", "sandbox": "go-backend"}, ...]')
 
 ---
 
-## Pipelines (Free Monad)
+## Pipelines
 
 A pipeline definition is a program expressed as data. The `pipeline` tool is the interpreter. You describe what should happen — steps, control flow, error handling — and the interpreter evaluates it, managing shared state and resource budgets.
 
-### Why "free monad"?
-
-Because the pipeline definition is a data structure that describes computation without executing it. You can store it as JSON, version it in git, share it across projects, and resume it from any step. The interpreter handles the effects: spawning containers, tracking costs, enforcing deadlines, and routing control flow.
+The key property: the definition is a JSON value you can store, version, share, resume, and generate. It does nothing on its own. The interpreter handles all effects: spawning containers, tracking costs, enforcing deadlines, and routing control flow.
 
 ### Complete pipeline example
 
@@ -371,8 +369,8 @@ Because the pipeline definition is a data structure that describes computation w
 |---|---|---|
 | `id` | string | Step identifier (used by `on_fail`, `next`, `retry_if`). Defaults to `step-{i}`. |
 | `prompt` | string | The task prompt. Previous step's output is appended as context automatically. |
-| `on_fail` | string \| dict | Step ID to jump to on failure, or `{"monad": "Name"}` for LLM-governed decision. |
-| `on_success` | dict | `{"monad": "Name"}` — LLM-governed decision evaluated after a successful step. |
+| `on_fail` | string \| dict | Step ID to jump to on failure, or `{"governor": "Name"}` for LLM-governed decision. |
+| `on_success` | dict | `{"governor": "Name"}` — LLM-governed decision evaluated after a successful step. |
 | `next` | string | Step ID to jump to after success (instead of next sequential step). |
 | `condition` | string | `"prev.error"` — only run this step if the previous step failed. |
 | `max_retries` | int | Max times this step can be entered via `on_fail`/`next` jumps (default: 3). |
@@ -388,11 +386,11 @@ Because the pipeline definition is a data structure that describes computation w
 | `budget` | float | Total USD budget. Pipeline stops if exceeded. |
 | `deadline_seconds` | int | Wall-clock deadline. Pipeline stops if exceeded. |
 | `classification` | string | Default data classification for the run. |
-| `monads` | dict | Inline monad specs keyed by name. Per-project, version-controlled alongside the pipeline. |
+| `governors` | dict | Inline governor specs keyed by name. Per-project, version-controlled alongside the pipeline. |
 
 ### Pipeline status
 
-The `pipeline` tool returns a `status` field: `"done"` (all steps completed) or `"broken"` (last result had an error, or a monad returned `broken`). A `broken_reason` field is included when applicable. Broken pipelines can be inspected via `pipeline_status`.
+The `pipeline` tool returns a `status` field: `"done"` (all steps completed) or `"broken"` (last result had an error, or a governor returned `broken`). A `broken_reason` field is included when applicable. Broken pipelines can be inspected via `pipeline_status`.
 
 ### The /shared/ directory
 
@@ -410,15 +408,15 @@ pipeline(definition: "research-and-report", resume: "a1b2c3d4e5f6/benchmark")
 
 ---
 
-## LLM-Governed Monads
+## Governors
 
-Monads are LLM-powered control-flow decisions evaluated at pipeline trigger points (`on_fail`, `on_success`). They replace hardcoded fallback logic with natural language policy — the monad spec describes the decision in plain English, and a Claude model evaluates it against the live pipeline state.
+Governors are LLM-powered control-flow hooks evaluated at pipeline trigger points (`on_fail`, `on_success`). They replace hardcoded fallback logic with natural language policy — a Claude model reads the live pipeline state and decides what happens next.
 
-Unlike the ref decoration layer (`stamps.py` — provenance, cost, classification, encryption), monads are about control flow.
+Unlike the stamp layer (`stamps.py` — provenance, cost, classification, encryption), governors are about control flow.
 
 ### Continuation algebra
 
-Every monad returns one of five actions:
+Every governor returns one of five actions:
 
 | Action | Effect |
 |--------|--------|
@@ -428,16 +426,16 @@ Every monad returns one of five actions:
 | `broken` | Stop and mark pipeline as broken with a `reason` |
 | `patch_pipeline` | Deep-merge patch the pipeline definition, then continue |
 
-The `context` dict is free-form, accumulates across the pipeline, and is written to `/shared/monad-context.json` after each evaluation so steps can read it.
+The `context` dict is free-form, accumulates across the pipeline, and is written to `/shared/governor-context.json` after each evaluation so steps can read it.
 
-### Inline pipeline monads
+### Inline pipeline governors
 
-Define monads directly in the pipeline JSON — version-controlled alongside the pipeline, no global registration needed:
+Define governors directly in the pipeline JSON — version-controlled alongside the pipeline, no global registration needed:
 
 ```json
 {
   "name": "train-loop",
-  "monads": {
+  "governors": {
     "TrainingFailure": {
       "description": "Governs QLoRA train step failures",
       "model": "claude-haiku-4-5-20251001",
@@ -450,17 +448,17 @@ Define monads directly in the pipeline JSON — version-controlled alongside the
     }
   },
   "steps": [
-    {"id": "train",    "prompt": "...", "on_fail":    {"monad": "TrainingFailure"}},
-    {"id": "evaluate", "prompt": "...", "on_success": {"monad": "QualityGate"}}
+    {"id": "train",    "prompt": "...", "on_fail":    {"governor": "TrainingFailure"}},
+    {"id": "evaluate", "prompt": "...", "on_success": {"governor": "QualityGate"}}
   ]
 }
 ```
 
-Global fallback: `~/.claude/monads/` (managed by `save_monad_spec` / `list_monad_specs`). Inline definitions take priority over global ones.
+Global fallback: `~/.claude/governors/` (managed by `save_governor_spec` / `list_governor_specs`). Inline definitions take priority over global ones.
 
 ### The patch_pipeline action
 
-A monad can surgically modify the running pipeline definition. This uses JSON Merge Patch (RFC 7396) — null values delete keys, objects recurse, scalars/arrays replace:
+A governor can surgically modify the running pipeline definition. This uses JSON Merge Patch (RFC 7396) — null values delete keys, objects recurse, scalars/arrays replace:
 
 ```json
 {
@@ -475,9 +473,9 @@ A monad can surgically modify the running pipeline definition. This uses JSON Me
 }
 ```
 
-### monad_context
+### governor_context
 
-The context dict from each monad continuation is merged into a running `monad_context` that persists across the entire pipeline. Written to `/shared/monad-context.json` so steps can read it. Use it to pass structured observations between monads (e.g., iteration count, last loss value, retry history).
+The context dict from each governor continuation is merged into a running `governor_context` that persists across the entire pipeline. Written to `/shared/governor-context.json` so steps can read it. Use it to pass structured observations between governors (e.g., iteration count, last loss value, retry history).
 
 ---
 

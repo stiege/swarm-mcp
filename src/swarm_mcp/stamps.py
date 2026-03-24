@@ -1,12 +1,12 @@
-"""Monadic wrappers for the swarm ref system.
+"""Stamp layers for the swarm ref system.
 
-Each monad layer adds optional fields to a ref dict rather than wrapping it in
+Each stamp layer adds optional fields to a ref dict rather than wrapping it in
 a nested data structure.  This keeps refs flat and JSON-serialisable while
 still composable — any combinator can inspect or add any layer.
 
-Monad stack (outermost first)::
+Stamp order (applied by enrich_ref)::
 
-    Encrypted(Classified(Costed(Timed(Provenanced(Validated(Ref a))))))
+    Provenance → Cost → Time → Validated → Retried → Classified → Encrypted
 
 In practice each layer is a ``stamp_*`` function that mutates the ref dict
 in-place and returns it, and a corresponding ``check_*`` / ``is_*`` predicate
@@ -426,7 +426,7 @@ def enrich_ref(
     max_retries: int | None = None,
     encrypt: bool = False,
 ) -> dict:
-    """Apply all relevant monadic stamps to a ref in a single call.
+    """Apply all relevant stamps to a ref in a single call.
 
     This is the canonical way to annotate a freshly-created ref before
     returning it from a combinator.  Only non-``None`` options are applied.
@@ -482,140 +482,3 @@ def enrich_ref(
         stamp_encrypted(ref, key_id)
 
     return ref
-
-
-# ── LLM-Governed Pipeline Monads ──────────────────────────────────
-
-import copy
-from dataclasses import dataclass, field as dataclass_field
-
-MONAD_REGISTRY_DIR = os.path.expanduser("~/.claude/monads")
-
-
-@dataclass
-class MonadSpec:
-    name: str
-    spec: str           # Natural language: what this monad should decide
-    model: str = "claude-haiku-4-5-20251001"
-    description: str = ""
-
-
-@dataclass
-class MonadContinuation:
-    action: str   # "next" | "jump" | "halt" | "broken" | "patch_pipeline"
-    target: str | None = None           # step_id for "jump"
-    reason: str | None = None           # for "halt"/"broken"
-    context: dict = dataclass_field(default_factory=dict)  # KV additions to monad_context
-    pipeline_patch: dict | None = None  # deep-merge dict for "patch_pipeline"
-
-
-def save_monad(spec: MonadSpec) -> None:
-    os.makedirs(MONAD_REGISTRY_DIR, exist_ok=True)
-    path = os.path.join(MONAD_REGISTRY_DIR, f"{spec.name}.json")
-    with open(path, "w") as f:
-        json.dump({"name": spec.name, "spec": spec.spec, "model": spec.model, "description": spec.description}, f, indent=2)
-
-
-def load_monad(name: str) -> "MonadSpec | None":
-    path = os.path.join(MONAD_REGISTRY_DIR, f"{name}.json")
-    if not os.path.exists(path):
-        return None
-    with open(path) as f:
-        data = json.load(f)
-    return MonadSpec(**data)
-
-
-def list_monads() -> list:
-    if not os.path.exists(MONAD_REGISTRY_DIR):
-        return []
-    result = []
-    for fname in sorted(os.listdir(MONAD_REGISTRY_DIR)):
-        if fname.endswith(".json"):
-            spec = load_monad(fname[:-5])
-            if spec:
-                result.append(spec)
-    return result
-
-
-def deep_merge(base: dict, patch: dict) -> dict:
-    """JSON Merge Patch (RFC 7396): null values delete keys, dicts recurse, scalars/arrays replace."""
-    result = copy.deepcopy(base)
-    for key, value in patch.items():
-        if value is None:
-            result.pop(key, None)
-        elif isinstance(value, dict) and isinstance(result.get(key), dict):
-            result[key] = deep_merge(result[key], value)
-        else:
-            result[key] = copy.deepcopy(value)
-    return result
-
-
-def evaluate_monad(
-    spec: "MonadSpec",
-    pipeline_def: dict,
-    current_step: dict,
-    results: list,
-    monad_context: dict,
-) -> "MonadContinuation":
-    """Evaluate an LLM monad and return a continuation decision.
-
-    Calls the Claude API directly — lightweight decision call, no container spin-up.
-    """
-    import anthropic
-
-    state = {
-        "current_step": {
-            "id": current_step.get("id"),
-            "exit_code": results[-1].exit_code if results else None,
-            "error": results[-1].error if results else None,
-            "output": (results[-1].text or "")[:1000] if results else None,
-        },
-        "prior_steps": [
-            {"id": r.agent_id, "exit_code": r.exit_code, "error": r.error}
-            for r in results[:-1]
-        ],
-        "monad_context": monad_context,
-        "pipeline": {
-            "name": pipeline_def.get("name"),
-            "steps": [
-                {"id": s.get("id"), "prompt_snippet": s.get("prompt", "")[:100]}
-                for s in pipeline_def.get("steps", [])
-            ],
-        },
-    }
-
-    user_msg = (
-        f"Pipeline state:\n{json.dumps(state, indent=2)}\n\n"
-        f"Full pipeline definition:\n{json.dumps(pipeline_def, indent=2)}\n\n"
-        'Respond with JSON only (no markdown fences):\n'
-        '{"action": "next|jump|halt|broken|patch_pipeline", '
-        '"target": "<step_id or null>", '
-        '"reason": "<explanation>", '
-        '"context": {}, '
-        '"pipeline_patch": null}'
-    )
-
-    client = anthropic.Anthropic()
-    response = client.messages.create(
-        model=spec.model,
-        max_tokens=1024,
-        system=spec.spec + "\n\nYou must respond with valid JSON only. No markdown fences, no text outside the JSON object.",
-        messages=[{"role": "user", "content": user_msg}],
-    )
-
-    text = response.content[0].text.strip()
-    if text.startswith("```"):
-        parts = text.split("```")
-        text = parts[1]
-        if text.startswith("json\n"):
-            text = text[5:]
-    text = text.strip()
-
-    data = json.loads(text)
-    return MonadContinuation(
-        action=data.get("action", "next"),
-        target=data.get("target"),
-        reason=data.get("reason"),
-        context=data.get("context") or {},
-        pipeline_patch=data.get("pipeline_patch"),
-    )

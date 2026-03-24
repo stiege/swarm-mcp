@@ -17,7 +17,7 @@ Combinators are the building blocks of swarm-mcp pipelines. Each one wraps one o
 | `filter` | Type-gate validation | valid refs only | Remove bad outputs before downstream use |
 | `race` | Speculative execution | first winner | Latency matters more than cost |
 | `retry` | Auto-retry with context | ref or error | Flaky tasks or strict output types |
-| `guard` | Enforce monad conditions | ref or error | Policy enforcement at pipeline boundaries |
+| `guard` | Enforce guard conditions | ref or error | Policy enforcement at pipeline boundaries |
 
 ---
 
@@ -388,7 +388,7 @@ filter(
 }
 ```
 
-Each ref in `results` and `rejected` will have `validated_as`, `validation_verdict`, and `validation_ref` stamped by the Validated monad layer.
+Each ref in `results` and `rejected` will have `validated_as`, `validation_verdict`, and `validation_ref` stamped by the Validated stamp.
 
 !!! tip "When to use"
     Use `filter` between `map` (or `par`) and `reduce` when the map step produces structured output that must conform to a schema before synthesis. It prevents malformed results from corrupting a downstream `reduce`.
@@ -490,7 +490,7 @@ On attempt 2, the agent's prompt will include:
 Prior attempt 1 failed with error: JSONDecodeError — the response contained markdown fences around the JSON. Please return raw JSON only, with no surrounding text.
 ```
 
-Each ref produced by a retry attempt will have `attempt`, `max_retries`, and `prior_errors` stamped by the Retried monad layer.
+Each ref produced by a retry attempt will have `attempt`, `max_retries`, and `prior_errors` stamped by the Retried stamp.
 
 !!! tip "When to use"
     Use `retry` for any task that calls external APIs, performs file I/O, or must produce structured output. Combining `retry` with `declared_type` is the most reliable way to get well-formed JSON or code from an agent.
@@ -499,7 +499,7 @@ Each ref produced by a retry attempt will have `attempt`, `max_retries`, and `pr
 
 ## guard
 
-**Enforce monadic conditions.** Inspects a ref's monad-layer metadata and either passes the ref through unchanged or returns an error. Use at pipeline boundaries to enforce policies before passing results to downstream systems.
+**Enforce guard conditions.** Inspects a ref's stamp metadata and either passes the ref through unchanged or returns an error. Use at pipeline boundaries to enforce policies before passing results to downstream systems.
 
 ### Signature
 

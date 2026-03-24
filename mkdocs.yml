@@ -52,6 +52,7 @@ nav:
       - Refs: concepts/refs.md
       - Combinators: concepts/combinators.md
       - Pipelines: concepts/pipelines.md
+      - Governors: concepts/governors.md
       - Types: concepts/types.md
       - Sandboxes: concepts/sandboxes.md
       - MCP Access: concepts/mcps.md

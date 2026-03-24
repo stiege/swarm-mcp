@@ -88,7 +88,8 @@ src/swarm_mcp/
 ├── server.py      # MCP tool definitions (the public API)
 ├── agent.py       # Docker execution and output parsing
 ├── sandbox.py     # SandboxSpec dataclass and resolution
-├── monads.py      # Ref enrichment: provenance, cost, encryption, classification
+├── stamps.py      # Ref enrichment: provenance, cost, encryption, classification
+├── monads.py      # LLM-governed control flow (GovernorSpec, evaluate_monad)
 ├── types.py       # Natural language type system (load, resolve, validate)
 ├── registry.py    # Search paths for sandboxes, types, pipelines
 └── docker.py      # Docker command construction and image management
@@ -104,7 +105,7 @@ registered here using `@mcp.tool()` decorators.
 
 Tool handlers parse arguments, call lower-level modules, and format the return
 value. They do not contain business logic directly — they delegate to `agent.py`,
-`monads.py`, and `types.py`.
+`stamps.py`, `monads.py`, and `types.py`.
 
 The global concurrency semaphore (`_semaphore`) and resource pool dict
 (`_resource_pools`) live at module level in `server.py`.
@@ -130,9 +131,9 @@ The global concurrency semaphore (`_semaphore`) and resource pool dict
 container. `resolve_sandbox()` accepts a name (looked up via registry), a raw
 JSON string, or `None` (defaults), and applies any inline overrides on top.
 
-### `monads.py` — ref enrichment
+### `stamps.py` — ref enrichment
 
-Contains all the "monad" stamps applied to refs:
+Contains all the stamps applied to refs:
 
 - `stamp_provenance()` — SHA-256 content hash and parent ref chain
 - `stamp_cost()` — budget tracking fields
@@ -235,10 +236,10 @@ with ThreadPoolExecutor(max_workers=max_concurrency) as executor:
         results.append(future.result())
 ```
 
-### 4. Enrich refs with monadic context
+### 4. Enrich refs with stamps
 
 After each agent run, call `enrich_ref()` to attach provenance, cost tracking,
-and any other monad layers:
+and any other stamps:
 
 ```python
 ref = result.to_ref_dict(run_id)
@@ -318,6 +319,6 @@ For large changes, open an issue first to discuss the design before writing code
 ---
 
 !!! note "See also"
-    - [Concepts: Refs](concepts/refs.md) — understand the ref and monad system before modifying `monads.py`
+    - [Concepts: Refs](concepts/refs.md) — understand the ref and stamp system before modifying `stamps.py`
     - [Concepts: Combinators](concepts/combinators.md) — the full combinator reference
     - [Observability](observability.md) — how to debug agent runs during development

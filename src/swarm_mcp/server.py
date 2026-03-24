@@ -49,11 +49,10 @@ from concurrent.futures import ThreadPoolExecutor
 from mcp.server.fastmcp import FastMCP
 
 from . import stamps, tools as response_tools
-from . import monads
-from .monads import MonadSpec, evaluate_monad, save_monad, load_monad, list_monads, deep_merge
+from .governors import deep_merge
 from .agent import AgentResult, run_agent
 from . import docker as _docker
-from .sandbox import SandboxSpec, list_sandboxes, load_sandbox, resolve_sandbox, save_sandbox
+from .sandbox import SandboxSpec, list_sandboxes, resolve_sandbox, save_sandbox
 from . import registry
 from .types import build_validation_prompt, get_type, list_types as _list_types, resolve_type
 
@@ -635,7 +634,7 @@ def map_reduce(
     effort: str | None = None,
 ) -> str:
     """Map a prompt over inputs in parallel, then reduce results into one — all in a single call.
-    This is the monadic bind: map produces N results, reduce consumes them, no manual plumbing.
+    Fan-out then synthesise: map produces N results, reduce consumes them, no manual plumbing.
 
     Args:
         prompt_template: Prompt template with {input} placeholder(s).
@@ -1433,18 +1432,18 @@ def _write_pipeline_status(
         logger.warning("Failed to write pipeline status file: %s", status_path)
 
 
-def _write_monad_context(shared_dir: str, monad_context: dict) -> None:
-    """Persist accumulated monad context to /shared/monad-context.json."""
-    path = os.path.join(shared_dir, "monad-context.json")
+def _write_governor_context(shared_dir: str, governor_context: dict) -> None:
+    """Persist accumulated governor context to /shared/governor-context.json."""
+    path = os.path.join(shared_dir, "governor-context.json")
     try:
         with open(path, "w") as f:
-            json.dump(monad_context, f, indent=2, default=str)
+            json.dump(governor_context, f, indent=2, default=str)
     except OSError:
-        logger.warning("Failed to write monad context: %s", path)
+        logger.warning("Failed to write governor context: %s", path)
 
 
-def _apply_monad_continuation(
-    cont: monads.MonadContinuation,
+def _apply_governor_continuation(
+    cont: GovernorContinuation,
     pipeline_def: dict,
     steps: list,
     current_step_id: str,
@@ -1452,7 +1451,7 @@ def _apply_monad_continuation(
     results: list,
     spent_so_far: float,
 ) -> "int | None":
-    """Apply a monad continuation. Returns the new step index, or None to halt.
+    """Apply a governor continuation. Returns the new step index, or None to halt.
 
     Mutates pipeline_def and steps in-place when action is patch_pipeline.
     """
@@ -1466,17 +1465,17 @@ def _apply_monad_continuation(
         target_idx = next((j for j, s in enumerate(steps) if s.get("id") == cont.target), None)
         if target_idx is not None:
             return target_idx
-        logger.warning("Monad jump target '%s' not found", cont.target)
+        logger.warning("Governor jump target '%s' not found", cont.target)
         return None
 
     elif cont.action == "halt":
-        logger.info("Monad halt: %s", cont.reason)
+        logger.info("Governor halt: %s", cont.reason)
         return None
 
     elif cont.action == "broken":
-        broken_reason = cont.reason or "Monad signalled broken pipeline"
+        broken_reason = cont.reason or "Governor signalled broken pipeline"
         _write_pipeline_status(run_id, "broken", current_step_id, results, spent_so_far, broken_reason=broken_reason)
-        logger.error("Pipeline broken by monad: %s", broken_reason)
+        logger.error("Pipeline broken by governor: %s", broken_reason)
         return None
 
     elif cont.action == "patch_pipeline":
@@ -1496,22 +1495,22 @@ def _apply_monad_continuation(
         return len(steps)
 
     else:
-        logger.warning("Unknown monad action '%s', halting", cont.action)
+        logger.warning("Unknown governor action '%s', halting", cont.action)
         return None
 
 
 @mcp.tool()
-def save_monad_spec(
+def save_governor_spec(
     name: str,
     spec: str,
     description: str = "",
     model: str = "claude-haiku-4-5-20251001",
 ) -> str:
-    """Register an LLM-governed monad for use in pipeline control flow.
+    """Register an LLM-governed governor for use in pipeline control flow.
 
-    Monads are evaluated at trigger points (on_fail, on_success) to decide the
-    continuation. The spec is a natural language description of what the monad
-    should decide. The monad LLM returns one of:
+    Governors are evaluated at trigger points (on_fail, on_success) to decide the
+    continuation. The spec is a natural language description of what the governor
+    should decide. The governor LLM returns one of:
 
     - next            — proceed normally
     - jump(target)    — jump to a named step
@@ -1520,34 +1519,34 @@ def save_monad_spec(
     - patch_pipeline  — deep-merge patch the pipeline definition and continue
 
     Each continuation also carries a free-form ``context`` dict that accumulates
-    across the pipeline and is written to /shared/monad-context.json.
+    across the pipeline and is written to /shared/governor-context.json.
 
-    Reference a monad in a pipeline step:
-        "on_fail": {"monad": "Failure"}
-        "on_success": {"monad": "Validation"}
+    Reference a governor in a pipeline step:
+        "on_fail": {"governor": "Failure"}
+        "on_success": {"governor": "Validation"}
 
     Args:
-        name: Unique monad name used to reference it from pipeline steps.
+        name: Unique governor name used to reference it from pipeline steps.
         spec: Natural language description telling the LLM what to decide.
-        description: One-line summary shown in list_monad_specs.
+        description: One-line summary shown in list_governor_specs.
         model: Claude model for evaluation (default: haiku).
     """
     try:
-        monad = MonadSpec(name=name, spec=spec, description=description, model=model)
-        save_monad(monad)
+        governor = GovernorSpec(name=name, spec=spec, description=description, model=model)
+        save_governor(governor)
         return json.dumps({"saved": name, "model": model, "description": description})
     except Exception as e:
-        return json.dumps(response_tools.error_response("monad_save_error", str(e)))
+        return json.dumps(response_tools.error_response("governor_save_error", str(e)))
 
 
 @mcp.tool()
-def list_monad_specs() -> str:
-    """List all registered LLM-governed monads.
+def list_governor_specs() -> str:
+    """List all registered LLM-governed governors.
 
-    Returns each monad's name, description, model, and a preview of its spec.
+    Returns each governor's name, description, model, and a preview of its spec.
     """
     try:
-        specs = list_monads()
+        specs = list_governors()
         return json.dumps([
             {
                 "name": s.name,
@@ -1558,7 +1557,7 @@ def list_monad_specs() -> str:
             for s in specs
         ])
     except Exception as e:
-        return json.dumps(response_tools.error_response("monad_list_error", str(e)))
+        return json.dumps(response_tools.error_response("governor_list_error", str(e)))
 
 
 def _run_pipeline_loop(
@@ -1576,20 +1575,20 @@ def _run_pipeline_loop(
     results = []
     step_results: dict = {}
     retry_counts: dict = {}
-    monad_context: dict = {}
+    governor_context: dict = {}
 
-    inline_monads = {
-        name: MonadSpec(
+    inline_governors = {
+        name: GovernorSpec(
             name=name,
             spec=defn["spec"],
             model=defn.get("model", "claude-haiku-4-5-20251001"),
             description=defn.get("description", ""),
         )
-        for name, defn in pipeline_def.get("monads", {}).items()
+        for name, defn in pipeline_def.get("governors", {}).items()
     }
 
-    def _resolve_monad(name: str) -> "MonadSpec | None":
-        return inline_monads.get(name) or load_monad(name)
+    def _resolve_governor(name: str) -> "GovernorSpec | None":
+        return inline_governors.get(name) or load_governor(name)
 
     budget_limit = pipeline_def.get("budget")
     spent_so_far = 0.0
@@ -1688,24 +1687,24 @@ def _run_pipeline_loop(
 
         if result.error is not None:
             on_fail = step.get("on_fail")
-            if isinstance(on_fail, dict) and "monad" in on_fail:
-                monad_spec = _resolve_monad(on_fail["monad"])
-                if monad_spec is None:
-                    logger.error("on_fail monad '%s' not found in registry", on_fail["monad"])
+            if isinstance(on_fail, dict) and "governor" in on_fail:
+                governor_spec = _resolve_governor(on_fail["governor"])
+                if governor_spec is None:
+                    logger.error("on_fail governor '%s' not found in registry", on_fail["governor"])
                     break
                 try:
-                    cont = evaluate_monad(monad_spec, pipeline_def, step, results, monad_context)
-                    monad_context.update(cont.context)
-                    _write_monad_context(shared_dir, monad_context)
-                    logger.info("Monad '%s' on_fail: action=%s target=%s reason=%s",
-                                on_fail["monad"], cont.action, cont.target, cont.reason)
-                    new_i = _apply_monad_continuation(cont, pipeline_def, steps, step_id, run_id, results, spent_so_far)
+                    cont = evaluate_governor(governor_spec, pipeline_def, step, results, governor_context)
+                    governor_context.update(cont.context)
+                    _write_governor_context(shared_dir, governor_context)
+                    logger.info("Governor '%s' on_fail: action=%s target=%s reason=%s",
+                                on_fail["governor"], cont.action, cont.target, cont.reason)
+                    new_i = _apply_governor_continuation(cont, pipeline_def, steps, step_id, run_id, results, spent_so_far)
                     if new_i is None:
                         break
                     i = new_i
                     continue
                 except Exception as e:
-                    logger.error("Monad '%s' evaluation failed: %s", on_fail["monad"], e)
+                    logger.error("Governor '%s' evaluation failed: %s", on_fail["governor"], e)
                     break
             elif on_fail:
                 target_idx = next((j for j, s in enumerate(steps) if s.get("id") == on_fail), None)
@@ -1716,22 +1715,22 @@ def _run_pipeline_loop(
             break
         else:
             on_success = step.get("on_success")
-            if isinstance(on_success, dict) and "monad" in on_success:
-                monad_spec = _resolve_monad(on_success["monad"])
-                if monad_spec is not None:
+            if isinstance(on_success, dict) and "governor" in on_success:
+                governor_spec = _resolve_governor(on_success["governor"])
+                if governor_spec is not None:
                     try:
-                        cont = evaluate_monad(monad_spec, pipeline_def, step, results, monad_context)
-                        monad_context.update(cont.context)
-                        _write_monad_context(shared_dir, monad_context)
-                        logger.info("Monad '%s' on_success: action=%s target=%s",
-                                    on_success["monad"], cont.action, cont.target)
-                        new_i = _apply_monad_continuation(cont, pipeline_def, steps, step_id, run_id, results, spent_so_far)
+                        cont = evaluate_governor(governor_spec, pipeline_def, step, results, governor_context)
+                        governor_context.update(cont.context)
+                        _write_governor_context(shared_dir, governor_context)
+                        logger.info("Governor '%s' on_success: action=%s target=%s",
+                                    on_success["governor"], cont.action, cont.target)
+                        new_i = _apply_governor_continuation(cont, pipeline_def, steps, step_id, run_id, results, spent_so_far)
                         if new_i is None:
                             break
                         i = new_i
                         continue
                     except Exception as e:
-                        logger.error("Monad '%s' evaluation failed: %s", on_success["monad"], e)
+                        logger.error("Governor '%s' evaluation failed: %s", on_success["governor"], e)
 
             retry_if = step.get("retry_if")
             if retry_if and isinstance(retry_if, dict) and result.text:
@@ -1824,8 +1823,8 @@ def pipeline(
     }
 
     Step fields: prompt (required), plus any sandbox fields (model, tools, system_prompt, etc.).
-    Control flow: on_fail (step id to jump to on error, or {"monad": "name"} for LLM-governed
-    recovery — see save_monad_spec), on_success ({"monad": "name"} for LLM-governed continuation),
+    Control flow: on_fail (step id to jump to on error, or {"governor": "name"} for LLM-governed
+    recovery — see save_governor_spec), on_success ({"governor": "name"} for LLM-governed continuation),
     next (jump after success), condition ("prev.error" = only run if previous failed),
     max_retries, retry_if ({target_step: keyword} — jump if output contains keyword).
     Any unhandled failure terminates the pipeline with status="broken".

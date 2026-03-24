@@ -173,7 +173,7 @@ You now know the three fundamental patterns:
 
 From here:
 
-- [Refs](concepts/refs.md) — understand the monadic ref architecture in depth.
+- [Refs](concepts/refs.md) — understand the ref and stamp system in depth.
 - [Combinators](concepts/combinators.md) — full reference for `reduce()`, `map_reduce()`, `filter()`, `race()`, `retry()`, and `guard()`.
 - [Pipelines](concepts/pipelines.md) — define reusable, versioned pipeline specs as data.
 - [Sandboxes](concepts/sandboxes.md) — configure model, tools, memory, CPU, GPU, mounts, and more per agent.

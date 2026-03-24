@@ -1,10 +1,10 @@
-"""LLM-governed pipeline monads.
+"""LLM-governed pipeline governors.
 
-This module implements the control-flow monad layer for the pipeline interpreter.
-Monads are registered in natural language and evaluated by a Claude model at
+This module implements the control-flow governor layer for the pipeline interpreter.
+Governors are registered in natural language and evaluated by a Claude model at
 pipeline trigger points (on_fail, on_success) to return a continuation decision.
 
-The continuation algebra is fixed (Option A):
+The continuation algebra is fixed:
 
     next              — proceed to the next step normally
     jump(target)      — jump to a named step
@@ -13,14 +13,14 @@ The continuation algebra is fixed (Option A):
     patch_pipeline    — deep-merge patch the pipeline definition, then continue
 
 The ``context`` dict in each continuation accumulates across the pipeline.
-It is written to /shared/monad-context.json so steps can read it.
+It is written to /shared/governor-context.json so steps can read it.
 
-Monad specs are stored as JSON files in ~/.claude/monads/.
+Governor specs are stored as JSON files in ~/.claude/governors/.
 
 Usage in a pipeline step::
 
-    {"id": "train", ..., "on_fail": {"monad": "Failure"}}
-    {"id": "judge", ..., "on_success": {"monad": "Validation"}}
+    {"id": "train", ..., "on_fail": {"governor": "Failure"}}
+    {"id": "judge", ..., "on_success": {"governor": "Validation"}}
 """
 
 import copy
@@ -31,25 +31,25 @@ from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
-MONAD_REGISTRY_DIR = os.path.expanduser("~/.claude/monads")
+GOVERNOR_REGISTRY_DIR = os.path.expanduser("~/.claude/governors")
 
 
 # ── Registry ──────────────────────────────────────────────────────
 
 
 @dataclass
-class MonadSpec:
-    """A registered LLM-governed monad."""
+class GovernorSpec:
+    """A registered LLM-governed governor."""
     name: str
-    spec: str           # Natural language: what should this monad decide?
+    spec: str           # Natural language: what should this governor decide?
     model: str = "claude-haiku-4-5-20251001"
     description: str = ""
 
 
-def save_monad(spec: MonadSpec) -> None:
-    """Persist a monad spec to the registry directory."""
-    os.makedirs(MONAD_REGISTRY_DIR, exist_ok=True)
-    path = os.path.join(MONAD_REGISTRY_DIR, f"{spec.name}.json")
+def save_governor(spec: GovernorSpec) -> None:
+    """Persist a governor spec to the registry directory."""
+    os.makedirs(GOVERNOR_REGISTRY_DIR, exist_ok=True)
+    path = os.path.join(GOVERNOR_REGISTRY_DIR, f"{spec.name}.json")
     with open(path, "w") as f:
         json.dump({
             "name": spec.name,
@@ -59,24 +59,24 @@ def save_monad(spec: MonadSpec) -> None:
         }, f, indent=2)
 
 
-def load_monad(name: str) -> "MonadSpec | None":
-    """Load a monad spec by name, or None if not registered."""
-    path = os.path.join(MONAD_REGISTRY_DIR, f"{name}.json")
+def load_governor(name: str) -> "GovernorSpec | None":
+    """Load a governor spec by name, or None if not registered."""
+    path = os.path.join(GOVERNOR_REGISTRY_DIR, f"{name}.json")
     if not os.path.exists(path):
         return None
     with open(path) as f:
         data = json.load(f)
-    return MonadSpec(**data)
+    return GovernorSpec(**data)
 
 
-def list_monads() -> list:
-    """Return all registered monad specs, sorted by name."""
-    if not os.path.exists(MONAD_REGISTRY_DIR):
+def list_governors() -> list:
+    """Return all registered governor specs, sorted by name."""
+    if not os.path.exists(GOVERNOR_REGISTRY_DIR):
         return []
     result = []
-    for fname in sorted(os.listdir(MONAD_REGISTRY_DIR)):
+    for fname in sorted(os.listdir(GOVERNOR_REGISTRY_DIR)):
         if fname.endswith(".json"):
-            spec = load_monad(fname[:-5])
+            spec = load_governor(fname[:-5])
             if spec:
                 result.append(spec)
     return result
@@ -86,8 +86,8 @@ def list_monads() -> list:
 
 
 @dataclass
-class MonadContinuation:
-    """Fixed continuation returned by any LLM monad.
+class GovernorContinuation:
+    """Fixed continuation returned by any LLM governor.
 
     action values:
         next            — proceed normally
@@ -122,17 +122,17 @@ def deep_merge(base: dict, patch: dict) -> dict:
 # ── Evaluation ────────────────────────────────────────────────────
 
 
-def evaluate_monad(
-    spec: "MonadSpec",
+def evaluate_governor(
+    spec: "GovernorSpec",
     pipeline_def: dict,
     current_step: dict,
     results: list,
-    monad_context: dict,
-) -> "MonadContinuation":
-    """Evaluate an LLM monad and return a continuation.
+    governor_context: dict,
+) -> "GovernorContinuation":
+    """Evaluate an LLM governor and return a continuation.
 
     Calls the Claude API directly — lightweight decision call, no container.
-    The monad spec is the system prompt; pipeline state is the user message.
+    The governor spec is the system prompt; pipeline state is the user message.
     """
     import anthropic
 
@@ -147,7 +147,7 @@ def evaluate_monad(
             {"id": r.agent_id, "exit_code": r.exit_code, "error": r.error}
             for r in results[:-1]
         ],
-        "monad_context": monad_context,
+        "governor_context": governor_context,
         "pipeline": {
             "name": pipeline_def.get("name"),
             "steps": [
@@ -189,7 +189,7 @@ def evaluate_monad(
         text = text.strip()
 
     data = json.loads(text)
-    return MonadContinuation(
+    return GovernorContinuation(
         action=data.get("action", "next"),
         target=data.get("target"),
         reason=data.get("reason"),

@@ -91,7 +91,7 @@ swarm-mcp's niche: **programmable multi-agent orchestration from within Claude C
 
 - [Installation](installation.md) — install swarm-mcp, build the Docker image, wire into Claude Code
 - [Quickstart](quickstart.md) — your first agent, pipeline, and type-validated workflow in 10 minutes
-- [Concepts: Refs](concepts/refs.md) — the monadic architecture in depth
+- [Concepts: Refs](concepts/refs.md) — the ref and stamp system in depth
 - [Concepts: Combinators](concepts/combinators.md) — all 21 tools with examples
 - [Concepts: Types](concepts/types.md) — semantic validation with natural language types
 - [Concepts: MCP Access](concepts/mcps.md) — giving agents access to your knowledge base and tools
