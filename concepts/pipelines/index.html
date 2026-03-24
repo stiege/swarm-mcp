@@ -16,14 +16,14 @@
         <link rel="prev" href="../combinators/">
       
       
-        <link rel="next" href="../types/">
+        <link rel="next" href="../governors/">
       
       
         
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -912,10 +912,32 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#async-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Async Execution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#return-value" class="md-nav__link">
     <span class="md-ellipsis">
       
         Return Value
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#governors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Governors
       
     </span>
   </a>
@@ -937,6 +959,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../governors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1547,10 +1597,32 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#async-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Async Execution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#return-value" class="md-nav__link">
     <span class="md-ellipsis">
       
         Return Value
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#governors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Governors
       
     </span>
   </a>
@@ -1590,7 +1662,7 @@
 
 <h1 id="pipelines">Pipelines</h1>
 <p>A <strong>pipeline</strong> is a sequence of agent steps that executes as a single, resumable, cost-tracked unit. Pipelines model multi-stage workflows — test/fix loops, summarise-then-verify chains, ETL transformations — without requiring you to write any glue code.</p>
-<p>Under the hood the pipeline interpreter is a <strong>free monad</strong>: the JSON definition is pure data that describes a computation, and the interpreter decides at runtime how to sequence, branch, retry, and resume each step. This separation means you can store, version, and load pipeline definitions from files, pass them as strings, or generate them programmatically.</p>
+<p>The pipeline definition is pure data — JSON that describes what should happen without executing it. The interpreter decides at runtime how to sequence, branch, retry, and resume each step. This separation means you can store, version, and load pipeline definitions from files, pass them as strings, or generate them programmatically.</p>
 <hr />
 <h2 id="the-pipeline-tool">The <code>pipeline</code> Tool</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pipeline(definition: str, resume?: str) → PipelineResult
@@ -1609,8 +1681,9 @@
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">&quot;budget&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">2.50</span><span class="p">,</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">&quot;deadline_seconds&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">300</span><span class="p">,</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">&quot;classification&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;internal&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">&quot;steps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">]</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="p">}</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">&quot;governors&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nt">&quot;steps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">]</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">}</span>
 </code></pre></div>
 <table>
 <thead>
@@ -1651,6 +1724,12 @@
 <td>string</td>
 <td>—</td>
 <td>Informational tag passed through to results</td>
+</tr>
+<tr>
+<td><code>governors</code></td>
+<td>object</td>
+<td>—</td>
+<td>Inline <a href="../governors/">governor specs</a> keyed by name; per-project, version-controlled alongside the pipeline</td>
 </tr>
 <tr>
 <td><code>steps</code></td>
@@ -1701,9 +1780,15 @@
 <tbody>
 <tr>
 <td><code>on_fail</code></td>
-<td>string</td>
+<td>string | object</td>
 <td>stop</td>
-<td>Step <code>id</code> to jump to when this step fails (non-zero exit or error text)</td>
+<td>Step <code>id</code> to jump to on failure, or <code>{"governor": "Name"}</code> for an <a href="../governors/">LLM-governed decision</a></td>
+</tr>
+<tr>
+<td><code>on_success</code></td>
+<td>object</td>
+<td>—</td>
+<td><code>{"governor": "Name"}</code> — <a href="../governors/">LLM-governed decision</a> evaluated after a successful step</td>
 </tr>
 <tr>
 <td><code>next</code></td>
@@ -1951,18 +2036,50 @@
 </li>
 </ol>
 <hr />
+<h2 id="async-execution">Async Execution</h2>
+<p><code>pipeline()</code> launches the run in a background thread and returns immediately with a <code>run_id</code>. Use the companion tools to monitor and control the run:</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pipeline_status(run_id)</code></td>
+<td>Poll the current status from disk. Returns step-by-step progress, cost so far, and the current <code>status</code> field.</td>
+</tr>
+<tr>
+<td><code>pipeline_kill(run_id)</code></td>
+<td>Set the stop event and kill all Docker containers for the run. The pipeline halts at the next step boundary.</td>
+</tr>
+<tr>
+<td><code>list_pipelines()</code></td>
+<td>Scan <code>/tmp/swarm-mcp/</code> and return all known runs with their current status and last-active timestamp.</td>
+</tr>
+<tr>
+<td><code>pipeline_artifacts(run_id, step_id?)</code></td>
+<td>List files in the <code>/shared/</code> directory and each step's output directory. Pass <code>step_id</code> to see detailed file sizes for a specific step.</td>
+</tr>
+</tbody>
+</table>
+<p>Resume still works the same way — pass <code>resume="&lt;run_id&gt;"</code> or <code>resume="&lt;run_id&gt;/&lt;step_id&gt;"</code> to restart from any point.</p>
+<hr />
 <h2 id="return-value">Return Value</h2>
+<p><code>pipeline()</code> returns a status handle immediately. The same structure is also written to disk and returned by <code>pipeline_status()</code> when the run completes:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="p">{</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">&quot;run_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;a3f9c2d1&quot;</span><span class="p">,</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="nt">&quot;steps_executed&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span><span class="nt">&quot;total_steps&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span><span class="nt">&quot;final&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Coverage: 87%&quot;</span><span class="p">,</span>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span><span class="nt">&quot;all_results&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;run-tests&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">...</span><span class="p">},</span><span class="w"> </span><span class="nt">&quot;coverage&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">...</span><span class="p">}</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">  </span><span class="nt">&quot;total_cost_usd&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.42</span><span class="p">,</span>
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">  </span><span class="nt">&quot;total_duration_seconds&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">118</span><span class="p">,</span>
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">  </span><span class="nt">&quot;budget&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;limit&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">3.00</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;spent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.42</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;exceeded&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">},</span>
-<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">  </span><span class="nt">&quot;deadline_met&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
-<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="p">}</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;done&quot;</span><span class="p">,</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span><span class="nt">&quot;steps_executed&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span><span class="nt">&quot;total_steps&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span><span class="nt">&quot;final&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Coverage: 87%&quot;</span><span class="p">,</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">  </span><span class="nt">&quot;all_results&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;run-tests&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">...</span><span class="p">},</span><span class="w"> </span><span class="nt">&quot;coverage&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="err">...</span><span class="p">}</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">  </span><span class="nt">&quot;total_cost_usd&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.42</span><span class="p">,</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">  </span><span class="nt">&quot;total_duration_seconds&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">118</span><span class="p">,</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">  </span><span class="nt">&quot;budget&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;limit&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">3.00</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;spent&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.42</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;exceeded&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">},</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="w">  </span><span class="nt">&quot;deadline_met&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="p">}</span>
 </code></pre></div>
 <table>
 <thead>
@@ -1975,6 +2092,14 @@
 <tr>
 <td><code>run_id</code></td>
 <td>Unique identifier for this run; use for resume</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>"done"</code> (all steps completed) or <code>"broken"</code> (a step failed or a governor returned <code>broken</code>)</td>
+</tr>
+<tr>
+<td><code>broken_reason</code></td>
+<td>Human-readable reason; present when <code>status</code> is <code>"broken"</code></td>
 </tr>
 <tr>
 <td><code>steps_executed</code></td>
@@ -2011,8 +2136,22 @@
 </tbody>
 </table>
 <hr />
+<h2 id="governors">Governors</h2>
+<p>The <code>on_fail</code> and <code>on_success</code> fields accept a governor reference instead of a plain step ID:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="p">{</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;train&quot;</span><span class="p">,</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Run QLoRA fine-tuning for one epoch&quot;</span><span class="p">,</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">  </span><span class="nt">&quot;on_fail&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;governor&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;TrainingFailure&quot;</span><span class="p">},</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span><span class="nt">&quot;on_success&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;governor&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;QualityGate&quot;</span><span class="p">}</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="p">}</span>
+</code></pre></div>
+<p>When triggered, a Claude model evaluates the full pipeline state against the governor's natural language spec and returns a continuation: <code>next</code>, <code>jump</code>, <code>halt</code>, <code>broken</code>, or <code>patch_pipeline</code>. This replaces hardcoded fallback logic with policy described in plain English.</p>
+<p>Define governors inline in the pipeline JSON under the top-level <code>governors</code> key — they are version-controlled alongside the pipeline definition and take priority over global governors in <code>~/.claude/governors/</code>.</p>
+<p>See <a href="../governors/">Governors</a> for the full reference.</p>
+<hr />
 <h2 id="related-pages">Related Pages</h2>
 <ul>
+<li><a href="../governors/">Governors</a> — LLM-governed control flow and the continuation algebra</li>
 <li><a href="../sandboxes/">Sandboxes</a> — configure the Docker environment for each step</li>
 <li><a href="../resources/">Resources</a> — GPU and named resource pools within pipeline steps</li>
 <li><a href="../combinators/">Combinators</a> — <code>par</code> and <code>map</code> for fan-out within a step</li>

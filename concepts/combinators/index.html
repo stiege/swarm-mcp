@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -1128,6 +1128,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../governors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../types/" class="md-nav__link">
         
   
@@ -2016,7 +2044,7 @@
 </tr>
 <tr>
 <td><code>guard</code></td>
-<td>Enforce monad conditions</td>
+<td>Enforce guard conditions</td>
 <td>ref or error</td>
 <td>Policy enforcement at pipeline boundaries</td>
 </tr>
@@ -2321,7 +2349,7 @@
 <a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">  </span><span class="nt">&quot;rejected&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="mi">2</span><span class="w"> </span><span class="err">re</span><span class="kc">fs</span><span class="w"> </span><span class="err">wi</span><span class="kc">t</span><span class="err">h</span><span class="w"> </span><span class="err">valida</span><span class="kc">t</span><span class="err">io</span><span class="kc">n</span><span class="err">_verdic</span><span class="kc">t</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;INVALID&quot;</span><span class="err">...</span><span class="w"> </span><span class="p">]</span>
 <a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="p">}</span>
 </code></pre></div>
-<p>Each ref in <code>results</code> and <code>rejected</code> will have <code>validated_as</code>, <code>validation_verdict</code>, and <code>validation_ref</code> stamped by the Validated monad layer.</p>
+<p>Each ref in <code>results</code> and <code>rejected</code> will have <code>validated_as</code>, <code>validation_verdict</code>, and <code>validation_ref</code> stamped by the Validated stamp.</p>
 <div class="admonition tip">
 <p class="admonition-title">When to use</p>
 <p>Use <code>filter</code> between <code>map</code> (or <code>par</code>) and <code>reduce</code> when the map step produces structured output that must conform to a schema before synthesis. It prevents malformed results from corrupting a downstream <code>reduce</code>.</p>
@@ -2401,14 +2429,14 @@
 <p>On attempt 2, the agent's prompt will include:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>Prior attempt 1 failed with error: JSONDecodeError — the response contained markdown fences around the JSON. Please return raw JSON only, with no surrounding text.
 </code></pre></div>
-<p>Each ref produced by a retry attempt will have <code>attempt</code>, <code>max_retries</code>, and <code>prior_errors</code> stamped by the Retried monad layer.</p>
+<p>Each ref produced by a retry attempt will have <code>attempt</code>, <code>max_retries</code>, and <code>prior_errors</code> stamped by the Retried stamp.</p>
 <div class="admonition tip">
 <p class="admonition-title">When to use</p>
 <p>Use <code>retry</code> for any task that calls external APIs, performs file I/O, or must produce structured output. Combining <code>retry</code> with <code>declared_type</code> is the most reliable way to get well-formed JSON or code from an agent.</p>
 </div>
 <hr />
 <h2 id="guard">guard</h2>
-<p><strong>Enforce monadic conditions.</strong> Inspects a ref's monad-layer metadata and either passes the ref through unchanged or returns an error. Use at pipeline boundaries to enforce policies before passing results to downstream systems.</p>
+<p><strong>Enforce guard conditions.</strong> Inspects a ref's stamp metadata and either passes the ref through unchanged or returns an error. Use at pipeline boundaries to enforce policies before passing results to downstream systems.</p>
 <h3 id="signature_9">Signature</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>guard(
 <a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>  ref,     # a ref dict

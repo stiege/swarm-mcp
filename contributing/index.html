@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -642,6 +642,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../concepts/governors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../concepts/types/" class="md-nav__link">
         
   
@@ -1137,10 +1165,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#monadspy-ref-enrichment" class="md-nav__link">
+  <a href="#stampspy-ref-enrichment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        monads.py — ref enrichment
+        stamps.py — ref enrichment
       
     </span>
   </a>
@@ -1231,10 +1259,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#4-enrich-refs-with-monadic-context" class="md-nav__link">
+  <a href="#4-enrich-refs-with-stamps" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. Enrich refs with monadic context
+        4. Enrich refs with stamps
       
     </span>
   </a>
@@ -1442,10 +1470,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#monadspy-ref-enrichment" class="md-nav__link">
+  <a href="#stampspy-ref-enrichment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        monads.py — ref enrichment
+        stamps.py — ref enrichment
       
     </span>
   </a>
@@ -1536,10 +1564,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#4-enrich-refs-with-monadic-context" class="md-nav__link">
+  <a href="#4-enrich-refs-with-stamps" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. Enrich refs with monadic context
+        4. Enrich refs with stamps
       
     </span>
   </a>
@@ -1682,10 +1710,11 @@ for a given change is the key to navigating the codebase quickly.</p>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>├── server.py      # MCP tool definitions (the public API)
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>├── agent.py       # Docker execution and output parsing
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>├── sandbox.py     # SandboxSpec dataclass and resolution
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>├── monads.py      # Ref enrichment: provenance, cost, encryption, classification
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>├── types.py       # Natural language type system (load, resolve, validate)
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>├── registry.py    # Search paths for sandboxes, types, pipelines
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>└── docker.py      # Docker command construction and image management
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>├── stamps.py      # Ref enrichment: provenance, cost, encryption, classification
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>├── monads.py      # LLM-governed control flow (GovernorSpec, evaluate_monad)
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>├── types.py       # Natural language type system (load, resolve, validate)
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>├── registry.py    # Search paths for sandboxes, types, pipelines
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>└── docker.py      # Docker command construction and image management
 </code></pre></div>
 <h3 id="serverpy-tool-definitions"><code>server.py</code> — tool definitions</h3>
 <p>Every MCP tool (<code>run</code>, <code>par</code>, <code>map</code>, <code>reduce</code>, <code>map_reduce</code>, <code>chain</code>,
@@ -1695,7 +1724,7 @@ for a given change is the key to navigating the codebase quickly.</p>
 registered here using <code>@mcp.tool()</code> decorators.</p>
 <p>Tool handlers parse arguments, call lower-level modules, and format the return
 value. They do not contain business logic directly — they delegate to <code>agent.py</code>,
-<code>monads.py</code>, and <code>types.py</code>.</p>
+<code>stamps.py</code>, <code>monads.py</code>, and <code>types.py</code>.</p>
 <p>The global concurrency semaphore (<code>_semaphore</code>) and resource pool dict
 (<code>_resource_pools</code>) live at module level in <code>server.py</code>.</p>
 <h3 id="agentpy-execution-engine"><code>agent.py</code> — execution engine</h3>
@@ -1716,8 +1745,8 @@ value. They do not contain business logic directly — they delegate to <code>ag
 <p><code>SandboxSpec</code> is a dataclass capturing everything needed to configure an agent
 container. <code>resolve_sandbox()</code> accepts a name (looked up via registry), a raw
 JSON string, or <code>None</code> (defaults), and applies any inline overrides on top.</p>
-<h3 id="monadspy-ref-enrichment"><code>monads.py</code> — ref enrichment</h3>
-<p>Contains all the "monad" stamps applied to refs:</p>
+<h3 id="stampspy-ref-enrichment"><code>stamps.py</code> — ref enrichment</h3>
+<p>Contains all the stamps applied to refs:</p>
 <ul>
 <li><code>stamp_provenance()</code> — SHA-256 content hash and parent ref chain</li>
 <li><code>stamp_cost()</code> — budget tracking fields</li>
@@ -1799,9 +1828,9 @@ pattern):</p>
 <a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="k">for</span> <span class="n">future</span> <span class="ow">in</span> <span class="n">as_completed</span><span class="p">(</span><span class="n">futures</span><span class="p">):</span>
 <a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>        <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">future</span><span class="o">.</span><span class="n">result</span><span class="p">())</span>
 </code></pre></div>
-<h3 id="4-enrich-refs-with-monadic-context">4. Enrich refs with monadic context</h3>
+<h3 id="4-enrich-refs-with-stamps">4. Enrich refs with stamps</h3>
 <p>After each agent run, call <code>enrich_ref()</code> to attach provenance, cost tracking,
-and any other monad layers:</p>
+and any other stamps:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">ref</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">to_ref_dict</span><span class="p">(</span><span class="n">run_id</span><span class="p">)</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">enrich_ref</span><span class="p">(</span>
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">ref</span><span class="p">,</span>
@@ -1868,7 +1897,7 @@ isolation (mock <code>run_agent</code> so tests don't require Docker):</p>
 <div class="admonition note">
 <p class="admonition-title">See also</p>
 <ul>
-<li><a href="../concepts/refs/">Concepts: Refs</a> — understand the ref and monad system before modifying <code>monads.py</code></li>
+<li><a href="../concepts/refs/">Concepts: Refs</a> — understand the ref and stamp system before modifying <code>stamps.py</code></li>
 <li><a href="../concepts/combinators/">Concepts: Combinators</a> — the full combinator reference</li>
 <li><a href="../observability/">Observability</a> — how to debug agent runs during development</li>
 </ul>

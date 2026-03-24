@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -624,6 +624,34 @@
     
   
     Pipelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/governors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governors
   
 
     
@@ -1622,7 +1650,7 @@ a restart, copy it to a secure location before rebooting.</p>
 <h3 id="enforcing-encryption-before-processing">Enforcing encryption before processing</h3>
 <p>Use <code>guard()</code> to ensure a ref is encrypted before passing it to another tool:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">guard</span><span class="p">(</span><span class="n">ref</span><span class="o">=</span><span class="s2">&quot;a1b2c3/agent-0&quot;</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="s2">&quot;encrypted&quot;</span><span class="p">)</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c1"># Raises an error if the ref does not have the &quot;encrypted&quot; monad set.</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c1"># Raises an error if the ref does not have the &quot;encrypted&quot; stamp set.</span>
 </code></pre></div>
 <p>This is useful in pipelines where a sensitive generation step must encrypt
 before any downstream processing can proceed.</p>
@@ -1712,7 +1740,7 @@ an error. Use it as a gate before passing a ref to downstream processing.</p>
 <tbody>
 <tr>
 <td><code>encrypted</code></td>
-<td>The ref has the <code>encrypted</code> monad (i.e. <code>encrypt()</code> was called)</td>
+<td>The ref has the <code>encrypted</code> stamp (i.e. <code>encrypt()</code> was called)</td>
 </tr>
 <tr>
 <td><code>validated</code></td>
@@ -1724,7 +1752,7 @@ an error. Use it as a gate before passing a ref to downstream processing.</p>
 </tr>
 <tr>
 <td><code>budget</code></td>
-<td>The ref's budget monad shows remaining budget &gt;= 0</td>
+<td>The ref's budget stamp shows remaining budget &gt;= 0</td>
 </tr>
 <tr>
 <td><code>exists</code></td>
@@ -1794,7 +1822,7 @@ an error. Use it as a gate before passing a ref to downstream processing.</p>
 <p class="admonition-title">See also</p>
 <ul>
 <li><a href="../observability/">Observability</a> — inspect artifact logs to audit what agents accessed</li>
-<li><a href="../concepts/refs/">Concepts: Refs</a> — full monad stack including Encrypted and Classified layers</li>
+<li><a href="../concepts/refs/">Concepts: Refs</a> — full stamp system including Encrypted and Classified stamps</li>
 <li><a href="../concepts/sandboxes/">Concepts: Sandboxes</a> — full sandbox spec including <code>network</code>, <code>tools</code>, <code>mounts</code></li>
 </ul>
 </div>

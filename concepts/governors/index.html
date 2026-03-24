@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://stiege.github.io/swarm-mcp/concepts/mcps/">
+        <link rel="canonical" href="https://stiege.github.io/swarm-mcp/concepts/governors/">
       
       
-        <link rel="prev" href="../sandboxes/">
+        <link rel="prev" href="../pipelines/">
       
       
-        <link rel="next" href="../resources/">
+        <link rel="next" href="../types/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>MCP Access - swarm-mcp</title>
+        <title>Governors - swarm-mcp</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#mcp-access-from-agents" class="md-skip">
+        <a href="#governors" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              MCP Access
+              Governors
             
           </span>
         </div>
@@ -644,10 +644,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../governors/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governors
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -663,6 +690,114 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#continuation-algebra" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Continuation Algebra
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#governor-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Governor Spec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inline-pipeline-governors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inline Pipeline Governors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#on_fail-and-on_success" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        on_fail and on_success
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#patch_pipeline-action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        patch_pipeline Action
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#governor_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        governor_context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#global-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Registry
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-pages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related Pages
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -728,37 +863,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    MCP Access
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../mcps/" class="md-nav__link">
         
   
   
@@ -774,187 +882,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#how-mcp-access-works" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How MCP access works
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-data-path-problem" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The data path problem
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The data path problem">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#solution-mount-the-data-path-at-the-same-location" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Solution: mount the data path at the same location
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#common-mcp-patterns" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Common MCP patterns
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Common MCP patterns">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#knowledge-database-database-mcp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Knowledge database (database-mcp)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#file-based-mcps-logseq-obsidian-etc" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        File-based MCPs (Logseq, Obsidian, etc.)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#network-mcps-google-workspace-slack-whatsapp-etc" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Network MCPs (Google Workspace, Slack, WhatsApp, etc.)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#troubleshooting" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Troubleshooting
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#saving-named-sandbox-specs-for-mcp-setups" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Saving named sandbox specs for MCP setups
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Saving named sandbox specs for MCP setups">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#save-the-spec" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Save the spec
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#use-it-anywhere" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Use it anywhere
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#security-considerations" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Security considerations
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related-pages" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related pages
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1248,10 +1175,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#how-mcp-access-works" class="md-nav__link">
+  <a href="#continuation-algebra" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How MCP access works
+        Continuation Algebra
       
     </span>
   </a>
@@ -1259,88 +1186,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-data-path-problem" class="md-nav__link">
+  <a href="#governor-spec" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The data path problem
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The data path problem">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#solution-mount-the-data-path-at-the-same-location" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Solution: mount the data path at the same location
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#common-mcp-patterns" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Common MCP patterns
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Common MCP patterns">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#knowledge-database-database-mcp" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Knowledge database (database-mcp)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#file-based-mcps-logseq-obsidian-etc" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        File-based MCPs (Logseq, Obsidian, etc.)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#network-mcps-google-workspace-slack-whatsapp-etc" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Network MCPs (Google Workspace, Slack, WhatsApp, etc.)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#troubleshooting" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Troubleshooting
+        Governor Spec
       
     </span>
   </a>
@@ -1348,49 +1197,54 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#saving-named-sandbox-specs-for-mcp-setups" class="md-nav__link">
+  <a href="#inline-pipeline-governors" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Saving named sandbox specs for MCP setups
+        Inline Pipeline Governors
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Saving named sandbox specs for MCP setups">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#save-the-spec" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Save the spec
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#use-it-anywhere" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Use it anywhere
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#security-considerations" class="md-nav__link">
+  <a href="#on_fail-and-on_success" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Security considerations
+        on_fail and on_success
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#patch_pipeline-action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        patch_pipeline Action
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#governor_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        governor_context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#global-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Registry
       
     </span>
   </a>
@@ -1401,7 +1255,7 @@
   <a href="#related-pages" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Related pages
+        Related Pages
       
     </span>
   </a>
@@ -1428,184 +1282,163 @@
   
 
 
-<h1 id="mcp-access-from-agents">MCP Access from Agents</h1>
-<p>swarm agents can use any MCP server that is configured in your Claude settings. The <code>mcps</code> sandbox field tells the runner which servers to attach — the agent container is wired up automatically.</p>
+<h1 id="governors">Governors</h1>
+<p>A governor is an LLM-powered control-flow hook evaluated at pipeline trigger points. Instead of hardcoding <code>on_fail: "fix-step"</code>, you write a natural language policy and a Claude model reads the live pipeline state to decide what happens next.</p>
+<p>This separates <em>what the pipeline does</em> (the steps) from <em>how it should respond to events</em> (the governors). The same pipeline can be governed by different governors for different deployment contexts.</p>
 <hr />
-<h2 id="how-mcp-access-works">How MCP access works</h2>
-<p>When you set <code>mcps: ["database-mcp"]</code> in a sandbox spec, swarm-mcp does three things before starting the container:</p>
-<ol>
-<li>
-<p><strong>Mounts <code>~/projects/mcp</code> at the same host path.</strong> The MCP server code lives here and is bind-mounted into the container unchanged, so the same absolute paths work inside and out.</p>
-</li>
-<li>
-<p><strong>Copies MCP server configs from your host <code>~/.claude.json</code>.</strong> swarm reads the <code>mcpServers</code> block and extracts the entries you named. The container gets its own <code>~/.claude.json</code> containing exactly those entries — including <code>command</code>, <code>args</code>, and any <code>env</code> values.</p>
-</li>
-<li>
-<p><strong>Claude inside the container spawns the MCP server as a subprocess.</strong> The server runs inside the container, with access to whatever is mounted. There is no tunnel back to the host.</p>
-</li>
-</ol>
-<p>The key implication: the MCP server process runs entirely inside the container. It can only see the filesystem that Docker has mounted into that container.</p>
-<hr />
-<h2 id="the-data-path-problem">The data path problem</h2>
-<p>MCP servers are typically configured with absolute paths that point to data on your host — a SQLite database, a directory of notes, a credentials file. Those paths are embedded in the server's <code>command</code> or <code>args</code> in <code>~/.claude.json</code>.</p>
-<p>When the server runs inside the container, those absolute paths must exist inside the container. Since the MCP config is copied in verbatim, the container path must be the <strong>same</strong> as the host path.</p>
-<p><strong>If a data path is not mounted, the MCP server will fail to open its files.</strong></p>
-<h3 id="solution-mount-the-data-path-at-the-same-location">Solution: mount the data path at the same location</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;mcps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;database-mcp&quot;</span><span class="p">],</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">&quot;mounts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">      </span><span class="nt">&quot;host_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;~/.local/share/database-mcp&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">      </span><span class="nt">&quot;container_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;~/.local/share/database-mcp&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">      </span><span class="nt">&quot;readonly&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">}</span>
-</code></pre></div>
-<p>This makes the MCP server's data directory visible at exactly the path it expects, with read-only protection so agents cannot corrupt the data.</p>
-<hr />
-<h2 id="common-mcp-patterns">Common MCP patterns</h2>
-<h3 id="knowledge-database-database-mcp">Knowledge database (database-mcp)</h3>
-<p>A local SQLite knowledge base that agents can search for context during research tasks.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;mcps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;database-mcp&quot;</span><span class="p">],</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;mounts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">      </span><span class="nt">&quot;host_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;~/.local/share/database-mcp&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">&quot;container_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;~/.local/share/database-mcp&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">      </span><span class="nt">&quot;readonly&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="p">}</span>
-</code></pre></div>
-<p>With this sandbox, an agent can:</p>
-<ul>
-<li>Run full-text search across all knowledge entries</li>
-<li>Query specific topics or tags</li>
-<li>Pull source summaries and citations to ground a research task</li>
-</ul>
-<p>Example call:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>run(
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  prompt: &quot;Search the knowledge base for prior art on rate-limiting algorithms. Summarise the top 5 relevant entries.&quot;,
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>  sandbox: {
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    &quot;mcps&quot;: [&quot;database-mcp&quot;],
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    &quot;mounts&quot;: [{&quot;host_path&quot;: &quot;~/.local/share/database-mcp&quot;, &quot;container_path&quot;: &quot;~/.local/share/database-mcp&quot;, &quot;readonly&quot;: true}]
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>  }
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>)
-</code></pre></div>
-<h3 id="file-based-mcps-logseq-obsidian-etc">File-based MCPs (Logseq, Obsidian, etc.)</h3>
-<p>MCPs that read from a directory of files on your host (markdown notes, a Logseq graph, a wiki).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;mcps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;logseq-mcp&quot;</span><span class="p">],</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">&quot;mounts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">      </span><span class="nt">&quot;host_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;~/notes/logseq&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">      </span><span class="nt">&quot;container_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;~/notes/logseq&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">      </span><span class="nt">&quot;readonly&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="p">}</span>
-</code></pre></div>
-<p>Use <code>"readonly": false</code> if the MCP needs to create or update notes (e.g. writing a summary back into the graph). Be aware that write-mounted directories are shared across any concurrent agents using the same sandbox — coordinate with resource pools if contention is a concern.</p>
-<h3 id="network-mcps-google-workspace-slack-whatsapp-etc">Network MCPs (Google Workspace, Slack, WhatsApp, etc.)</h3>
-<p>MCPs that talk to external APIs do not need any data mounts. They only need outbound network access, which is on by default (<code>"network": true</code>).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;mcps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;google-workspace-mcp&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;slack-mcp&quot;</span><span class="p">]</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="p">}</span>
-</code></pre></div>
-<p>No <code>mounts</code> needed — the MCP server connects to the external API directly from inside the container.</p>
-<div class="admonition note">
-<p class="admonition-title">Credentials in <code>mcpServers</code> env</p>
-<p>If your MCP server reads API keys from its <code>env</code> block in <code>~/.claude.json</code>, those values are copied into the container automatically. You do not need to pass them via <code>env_vars</code>.</p>
-</div>
-<hr />
-<h2 id="troubleshooting">Troubleshooting</h2>
+<h2 id="continuation-algebra">Continuation Algebra</h2>
+<p>Every governor evaluation returns exactly one of five actions:</p>
 <table>
 <thead>
 <tr>
-<th>Symptom</th>
-<th>Cause</th>
-<th>Fix</th>
+<th>Action</th>
+<th>Effect</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>"MCP server <code>foo</code> not found in host config" (logged at WARNING)</td>
-<td>The name in <code>mcps</code> does not match any key in <code>~/.claude.json</code> <code>mcpServers</code></td>
-<td>Check the exact key name in your host config</td>
+<td><code>next</code></td>
+<td>Proceed to the next step normally</td>
 </tr>
 <tr>
-<td>Agent cannot call MCP tools at all</td>
-<td>MCP server failed to start inside the container</td>
-<td>Check that <code>~/projects/mcp</code> exists on the host and contains the server code</td>
+<td><code>jump</code></td>
+<td>Jump to a named step (<code>target</code> field required)</td>
 </tr>
 <tr>
-<td>"No such file or directory" error in MCP server</td>
-<td>The server's data path is not mounted</td>
-<td>Add the path to <code>mounts</code> at the same container path</td>
+<td><code>halt</code></td>
+<td>Stop the pipeline cleanly (<code>status: "done"</code>)</td>
 </tr>
 <tr>
-<td>"Permission denied" error in MCP server</td>
-<td>Mount is <code>readonly: true</code> but the server needs write access</td>
-<td>Set <code>"readonly": false</code> on the relevant mount</td>
+<td><code>broken</code></td>
+<td>Stop and mark the pipeline broken (<code>status: "broken"</code>, <code>broken_reason</code> set)</td>
+</tr>
+<tr>
+<td><code>patch_pipeline</code></td>
+<td>Deep-merge patch the pipeline definition, then continue</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>context</code> dict is free-form. It accumulates across the entire pipeline run and is written to <code>/shared/governor-context.json</code> after each evaluation so steps can read it.</p>
+<hr />
+<h2 id="governor-spec">Governor Spec</h2>
+<p>A governor spec has three fields:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Governs QLoRA train step failures&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-haiku-4-5-20251001&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">&quot;spec&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;You govern the train step of a QLoRA fine-tuning pipeline. OOM errors → broken. NaN/loss divergence → broken. Transient errors (disk, timeout) → jump to the step before train to retry data preparation. Inspect exit_code and error output.&quot;</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="p">}</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>description</code></td>
+<td>Human-readable summary (used in listings)</td>
+</tr>
+<tr>
+<td><code>model</code></td>
+<td>Claude model to use for evaluation. Haiku is sufficient for most policy decisions.</td>
+</tr>
+<tr>
+<td><code>spec</code></td>
+<td>Natural language policy. The model receives the full pipeline state — step definition, prior results, error output — and must return a continuation JSON.</td>
 </tr>
 </tbody>
 </table>
 <hr />
-<h2 id="saving-named-sandbox-specs-for-mcp-setups">Saving named sandbox specs for MCP setups</h2>
-<p>If you use the same MCP configuration repeatedly, save it as a named spec so you do not repeat the JSON on every call.</p>
-<h3 id="save-the-spec">Save the spec</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>save_sandbox_spec(
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>  name: &quot;with-knowledge-db&quot;,
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  spec: &#39;{
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    &quot;mcps&quot;: [&quot;database-mcp&quot;],
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    &quot;mounts&quot;: [
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>      {
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        &quot;host_path&quot;: &quot;~/.local/share/database-mcp&quot;,
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>        &quot;container_path&quot;: &quot;~/.local/share/database-mcp&quot;,
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        &quot;readonly&quot;: true
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>      }
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    ]
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>  }&#39;
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>)
-</code></pre></div>
-<p>The spec is stored in <code>~/.claude/sandboxes/with-knowledge-db.json</code> (or your project's <code>sandboxes/</code> directory if a project is registered via <code>wrap_project</code>).</p>
-<h3 id="use-it-anywhere">Use it anywhere</h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>run(prompt: &quot;What do my notes say about distributed consensus?&quot;, sandbox: &quot;with-knowledge-db&quot;)
-</code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>par(
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>  tasks: &#39;[
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    {&quot;prompt&quot;: &quot;Summarise knowledge base entries on CAP theorem&quot;, &quot;sandbox&quot;: &quot;with-knowledge-db&quot;},
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    {&quot;prompt&quot;: &quot;Summarise knowledge base entries on CRDT data structures&quot;, &quot;sandbox&quot;: &quot;with-knowledge-db&quot;}
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>  ]&#39;
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>)
-</code></pre></div>
-<p>Named specs merge cleanly with inline overrides — you can add extra fields or swap the model without redefining the whole spec:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>run(
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>  prompt: &quot;Deep-dive on the Raft consensus entries&quot;,
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>  sandbox: &quot;with-knowledge-db&quot;,
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>  model: &quot;opus&quot;
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>)
+<h2 id="inline-pipeline-governors">Inline Pipeline Governors</h2>
+<p>Define governors directly in the pipeline JSON under the top-level <code>governors</code> key. They are version-controlled alongside the pipeline and take priority over global governors in <code>~/.claude/governors/</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;train-loop&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;governors&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nt">&quot;TrainingFailure&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">      </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Governs QLoRA train step failures&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-haiku-4-5-20251001&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">      </span><span class="nt">&quot;spec&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;You govern the train step of a QLoRA fine-tuning pipeline. OOM errors → broken. NaN/loss divergence → broken. Transient errors (disk, timeout) → jump to the step before train to retry data preparation. Inspect exit_code and error output.&quot;</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="nt">&quot;QualityGate&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">      </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Decides whether the current model iteration is good enough&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">      </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-haiku-4-5-20251001&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">      </span><span class="nt">&quot;spec&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;You govern the evaluation step. If the pass rate is 5/5, return halt (we&#39;re done). If 3-4/5, jump to the training step for another iteration. If 0-2/5, return broken — the model is not converging.&quot;</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">  </span><span class="nt">&quot;steps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;train&quot;</span><span class="p">,</span><span class="w">    </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;on_fail&quot;</span><span class="p">:</span><span class="w">    </span><span class="p">{</span><span class="nt">&quot;governor&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;TrainingFailure&quot;</span><span class="p">}},</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">    </span><span class="p">{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;evaluate&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;on_success&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;governor&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;QualityGate&quot;</span><span class="p">}}</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="p">}</span>
 </code></pre></div>
 <hr />
-<h2 id="security-considerations">Security considerations</h2>
-<ul>
-<li>
-<p><strong>Each agent gets its own container</strong> but MCP data directories are shared across any containers that mount them simultaneously. Use read-only mounts for data you do not want agents to modify.</p>
-</li>
-<li>
-<p><strong>Use <code>readonly: true</code> by default.</strong> Only set <code>readonly: false</code> when the MCP server genuinely needs write access. A write-mounted directory can be modified by any agent that uses the sandbox.</p>
-</li>
-<li>
-<p><strong>Sensitive MCP results can be protected.</strong> Use the <code>classify()</code> tool to tag outputs from agents that read sensitive data, and <code>encrypt()</code> to protect results at rest. The <code>guard()</code> tool can enforce that a classification level is present before passing results downstream.</p>
-</li>
-</ul>
+<h2 id="on_fail-and-on_success"><code>on_fail</code> and <code>on_success</code></h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>When evaluated</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>on_fail: {"governor": "Name"}</code></td>
+<td>When the step exits with an error or non-zero exit code</td>
+</tr>
+<tr>
+<td><code>on_success: {"governor": "Name"}</code></td>
+<td>When the step completes without error</td>
+</tr>
+</tbody>
+</table>
+<p>Plain step IDs still work for <code>on_fail</code> — <code>on_fail: "fix-step"</code> is unchanged. Use a governor when the decision is non-trivial (e.g., "OOM vs transient failure") or when you want the policy in human-readable form rather than hardcoded routing.</p>
 <hr />
-<h2 id="related-pages">Related pages</h2>
+<h2 id="patch_pipeline-action"><code>patch_pipeline</code> Action</h2>
+<p>A governor can surgically modify the running pipeline definition using <a href="https://datatracker.ietf.org/doc/html/rfc7396">JSON Merge Patch (RFC 7396)</a>: null values delete keys, objects recurse, scalars and arrays replace.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;patch_pipeline&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">&quot;pipeline_patch&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nt">&quot;steps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">      </span><span class="p">{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;train&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;prompt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Run training with --batch-size 4 instead of 8&quot;</span><span class="p">}</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="p">]</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="nt">&quot;context&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;adjusted_batch_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">},</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">  </span><span class="nt">&quot;reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Detected instability in loss curve — reducing batch size&quot;</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="p">}</span>
+</code></pre></div>
+<p>The interpreter applies the patch to the in-memory pipeline definition and continues from the next step. Later steps (and future governor evaluations) see the patched definition.</p>
+<hr />
+<h2 id="governor_context">governor_context</h2>
+<p>The <code>context</code> dict from each continuation is merged into a running <code>governor_context</code> that persists for the lifetime of the pipeline. After each evaluation the accumulated context is written to <code>/shared/governor-context.json</code>.</p>
+<p>Steps can read this file to act on structured observations from previous governor evaluations — iteration count, last loss value, retry history, or any other signal the governor chose to record.</p>
+<hr />
+<h2 id="global-registry">Global Registry</h2>
+<p>Governors not defined inline fall back to the global registry in <code>~/.claude/governors/</code>. Use the MCP tools to manage it:</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>save_governor_spec(name, spec, model?, description?)</code></td>
+<td>Save a governor to the global registry</td>
+</tr>
+<tr>
+<td><code>list_governor_specs()</code></td>
+<td>List all globally registered governors</td>
+</tr>
+</tbody>
+</table>
+<p>Inline definitions always take priority over global ones with the same name.</p>
+<hr />
+<h2 id="related-pages">Related Pages</h2>
 <ul>
-<li><a href="../sandboxes/">Sandboxes</a> — full reference for all sandbox spec fields, including <code>mcps</code> and <code>mounts</code></li>
-<li><a href="../resources/">Resources</a> — coordinate access to shared resources like databases using named resource pools</li>
-<li><a href="../../security/">Security</a> — isolation boundaries, network policy, and data classification</li>
+<li><a href="../pipelines/">Pipelines</a> — the pipeline interpreter that evaluates governors</li>
 </ul>
 
 
