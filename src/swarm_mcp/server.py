@@ -49,7 +49,7 @@ from concurrent.futures import ThreadPoolExecutor
 from mcp.server.fastmcp import FastMCP
 
 from . import stamps, tools as response_tools
-from .governors import deep_merge
+from .governors import deep_merge, GovernorContinuation
 from .agent import AgentResult, run_agent
 from . import docker as _docker
 from .sandbox import SandboxSpec, list_sandboxes, resolve_sandbox, save_sandbox
