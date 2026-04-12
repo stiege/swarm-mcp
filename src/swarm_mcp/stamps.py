@@ -8,6 +8,10 @@ Stamp order (applied by enrich_ref)::
 
     Provenance → Cost → Time → Validated → Retried → Classified → Encrypted
 
+The ``Search`` stamp is orthogonal to the above pipeline-level layers and is
+applied explicitly by tree-search combinators (``beam``/``tot``/``tooltree``)
+— it records per-node evaluator scores, depth, and beam rank.
+
 In practice each layer is a ``stamp_*`` function that mutates the ref dict
 in-place and returns it, and a corresponding ``check_*`` / ``is_*`` predicate
 that reads the added fields.
@@ -147,7 +151,14 @@ def remaining_time(deadline: float | None) -> float | None:
 
 # ── Validated ─────────────────────────────────────────────────────
 
-def stamp_validated(ref: dict, declared_type: str, verdict: str, validation_ref: str | None = None) -> dict:
+def stamp_validated(
+    ref: dict,
+    declared_type: str,
+    verdict: str,
+    validation_ref: str | None = None,
+    score: float | None = None,
+    issues: list[str] | None = None,
+) -> dict:
     """Mark a ref as validated against a declared type.
 
     Args:
@@ -157,6 +168,12 @@ def stamp_validated(ref: dict, declared_type: str, verdict: str, validation_ref:
             or ``"INVALID"``.
         validation_ref: Optional ref string pointing to the validator agent's
             own result (useful for audit trails).
+        score: Continuous score in [0.0, 1.0] from the validator. When
+            provided, stored as ``validation_score`` so iterative refinement
+            loops can watch for convergence.
+        issues: Actionable issues the validator flagged. When provided,
+            stored as ``validation_issues`` so a next-iteration proposer
+            knows what to fix.
 
     Returns:
         The same *ref* dict with ``"validated_as"`` and
@@ -166,6 +183,10 @@ def stamp_validated(ref: dict, declared_type: str, verdict: str, validation_ref:
     ref["validation_verdict"] = verdict  # VALID, PARTIAL, INVALID
     if validation_ref:
         ref["validation_ref"] = validation_ref
+    if score is not None:
+        ref["validation_score"] = max(0.0, min(1.0, float(score)))
+    if issues is not None:
+        ref["validation_issues"] = [str(i) for i in issues if i]
     return ref
 
 
@@ -209,6 +230,66 @@ def stamp_retry(ref: dict, attempt: int, max_retries: int, prior_errors: list[st
         "prior_errors": prior_errors or [],
     }
     return ref
+
+
+# ── Search ────────────────────────────────────────────────────────
+
+def stamp_search(
+    ref: dict,
+    score: float,
+    parent_ref: str | None = None,
+    depth: int = 0,
+    beam_rank: int = 0,
+    evaluator: str | None = None,
+    pruned: bool = False,
+    prune_reason: str | None = None,
+    alternatives: list | None = None,
+) -> dict:
+    """Record tree-search metadata on a ref dict.
+
+    Applied by ``beam``/``tot``/``tooltree`` to every node they expand. The
+    winning leaf of a search carries the full chain via ``parent_ref`` and
+    ``alternatives`` (losing siblings) so ``inspect`` can reconstruct the
+    search tree for audit.
+
+    Args:
+        ref: The ref dict to annotate (mutated in-place).
+        score: Evaluator verdict in [0.0, 1.0]. 1.0 = best, 0.0 = worst.
+        parent_ref: Ref string of the parent node in the search tree, or
+            ``None`` for root proposals.
+        depth: 0-indexed depth in the search tree.
+        beam_rank: 0-indexed rank at commit time (0 = winner of its beam).
+        evaluator: The evaluator directive used (e.g. ``"score:rigour"``,
+            ``"validate:[research-brief]"``). Preserved for audit.
+        pruned: ``True`` if the node was dropped by the gate.
+        prune_reason: Optional human-readable reason, e.g. ``"below threshold"``
+            or ``"budget exhausted"``.
+        alternatives: Losing siblings at the same beam level. Each entry is a
+            minimal ref dict with its own search stamp — enough to inspect but
+            not a full duplicate of the subtree.
+
+    Returns:
+        The same *ref* dict with a ``"search"`` key added.
+    """
+    ref["search"] = {
+        "score": max(0.0, min(1.0, float(score))),
+        "parent_ref": parent_ref,
+        "depth": depth,
+        "beam_rank": beam_rank,
+        "evaluator": evaluator,
+        "pruned": pruned,
+        "prune_reason": prune_reason,
+        "alternatives": alternatives or [],
+    }
+    return ref
+
+
+def is_search_winner(ref: dict) -> bool:
+    """Return ``True`` if the ref is the top-ranked (non-pruned) node of its beam."""
+    search = ref.get("search")
+    if not search:
+        return False
+    return not search.get("pruned", False) and search.get("beam_rank", 0) == 0
 
 
 # ── Classified ────────────────────────────────────────────────────

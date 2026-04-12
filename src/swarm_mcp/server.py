@@ -41,6 +41,9 @@ import datetime
 import json
 import logging
 import os
+import shutil
+import subprocess
+import tempfile
 import threading
 import time
 import uuid
@@ -49,12 +52,26 @@ from concurrent.futures import ThreadPoolExecutor
 from mcp.server.fastmcp import FastMCP
 
 from . import stamps, tools as response_tools
-from .governors import deep_merge, GovernorContinuation
+from .governors import (
+    GovernorContinuation,
+    GovernorSpec,
+    deep_merge,
+    evaluate_governor_beam,
+    list_governors,
+    load_governor,
+    save_governor,
+)
 from .agent import AgentResult, run_agent
 from . import docker as _docker
 from .sandbox import SandboxSpec, list_sandboxes, resolve_sandbox, save_sandbox
 from . import registry
-from .types import build_validation_prompt, get_type, list_types as _list_types, resolve_type
+from .types import (
+    build_validation_prompt,
+    get_type,
+    list_types as _list_types,
+    parse_validation_response,
+    resolve_type,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -948,22 +965,18 @@ def filter(
         _, results = _run_par_internal(tasks, max_concurrency=min(len(tasks), MAX_CONCURRENT))
 
         for ref_obj, result in zip(ref_list, results):
-            ref_str = ref_obj.get("ref") if isinstance(ref_obj, dict) else ref_obj
-            verdict = "UNKNOWN"
-            if result.text:
-                for line in result.text.split("\n"):
-                    line = line.strip()
-                    if line in ("VALID", "PARTIAL", "INVALID"):
-                        verdict = line
-                        break
-                    if line.startswith(("VALID", "PARTIAL", "INVALID")):
-                        verdict = line.split()[0]
-                        break
-
+            parsed = parse_validation_response(result.text or "")
             enriched = dict(ref_obj) if isinstance(ref_obj, dict) else {"ref": ref_obj}
-            stamps.stamp_validated(enriched, declared_type, verdict, f"{run_id}/{result.agent_id}")
+            stamps.stamp_validated(
+                enriched,
+                declared_type,
+                parsed["verdict"],
+                f"{run_id}/{result.agent_id}",
+                score=parsed["score"],
+                issues=parsed["issues"],
+            )
 
-            if verdict == "VALID":
+            if parsed["verdict"] == "VALID":
                 valid_refs.append(enriched)
             else:
                 invalid_refs.append(enriched)
@@ -1093,24 +1106,25 @@ def retry(
                 val_spec = _resolve_spec(None, model=model, timeout=60)
                 val_result = _run_with_semaphore(validation_prompt, val_spec, run_id, f"validate-{attempt}")
 
-                verdict = "UNKNOWN"
-                if val_result.text:
-                    for line in val_result.text.split("\n"):
-                        line = line.strip()
-                        if line in ("VALID", "PARTIAL", "INVALID"):
-                            verdict = line
-                            break
-                        if line.startswith(("VALID", "PARTIAL", "INVALID")):
-                            verdict = line.split()[0]
-                            break
+                parsed = parse_validation_response(val_result.text or "")
 
-                if verdict != "VALID":
-                    prior_errors.append(f"Type validation failed ({verdict}): {val_result.text[:500]}")
+                if parsed["verdict"] != "VALID":
+                    issues_summary = "; ".join(parsed["issues"]) if parsed["issues"] else (val_result.text or "")[:500]
+                    prior_errors.append(
+                        f"Type validation failed ({parsed['verdict']}, score={parsed['score']:.2f}): {issues_summary}"
+                    )
                     continue
 
                 # Stamp as validated
                 ref = result.to_ref_dict(run_id)
-                stamps.stamp_validated(ref, declared_type, verdict, f"{run_id}/validate-{attempt}")
+                stamps.stamp_validated(
+                    ref,
+                    declared_type,
+                    parsed["verdict"],
+                    f"{run_id}/validate-{attempt}",
+                    score=parsed["score"],
+                    issues=parsed["issues"],
+                )
                 stamps.stamp_retry(ref, attempt, max_attempts, prior_errors)
                 return json.dumps(ref, default=str)
 
@@ -1131,6 +1145,712 @@ def retry(
     except Exception as e:
         logger.exception("retry failed")
         return json.dumps(response_tools.error_response("retry_error", str(e)))
+
+
+# ── Search combinators ────────────────────────────────────────────
+
+_EVALUATOR_MODEL = "claude-haiku-4-5-20251001"
+"""Evaluators must be cheaper than proposers (Tree Search anti-pattern).
+The search combinators hardcode haiku for scoring; override only with care."""
+
+
+def _strip_code_fences(text: str) -> str:
+    """Remove a single outer ```lang``` fence if present.
+
+    Leaves the text unchanged if there is no fence. This is needed before
+    feeding an agent's output to an external executor (docker build, pytest,
+    etc.) because proposer models habitually wrap their output in fences
+    even when the prompt says not to.
+    """
+    stripped = text.strip()
+    if not stripped.startswith("```"):
+        return text
+    first_newline = stripped.find("\n")
+    if first_newline < 0:
+        return text
+    body = stripped[first_newline + 1 :]
+    if body.endswith("```"):
+        body = body[: -len("```")]
+    return body.rstrip()
+
+
+def _exec_evaluate(text: str, cmd_template: str, timeout_s: int = 300) -> dict:
+    """Evaluate an artifact by running a shell command against it.
+
+    The artifact text is written to a tempfile whose path is passed to the
+    command via the ``$ARTIFACT`` environment variable *and* as a
+    ``{artifact}`` substitution in *cmd_template*. The command runs under
+    ``/bin/sh -c``. Exit-code-only scoring:
+
+    - exit 0 → ``{verdict: VALID, score: 1.0, issues: []}``
+    - non-zero → ``{verdict: INVALID, score: 0.0, issues: [<last ~5 error lines>]}``
+
+    This is ground-truth validation: no LLM in the loop. Intended for
+    artifacts with compile/build/test semantics (Dockerfile → ``docker build``,
+    python module → ``pytest``, SQL → ``psql --dry-run``, etc.). For text
+    artifacts where there is no executable check, use ``validate:<type>``
+    instead.
+
+    Markdown fences are stripped from *text* before writing so proposers
+    that habitually wrap output in triple-backtick fences still work.
+    """
+    cleaned = _strip_code_fences(text)
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w", prefix="swarm-exec-", suffix=".txt", delete=False
+    )
+    artifact_path = tmp.name
+    try:
+        tmp.write(cleaned)
+        tmp.close()
+
+        cmd = cmd_template.replace("{artifact}", artifact_path)
+        env = os.environ.copy()
+        env["ARTIFACT"] = artifact_path
+
+        try:
+            proc = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout_s,
+                env=env,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return {
+                "verdict": "INVALID",
+                "score": 0.0,
+                "issues": [f"exec timed out after {timeout_s}s: {cmd_template[:120]}"],
+                "raw": "",
+            }
+
+        raw = (proc.stdout or "") + (proc.stderr or "")
+        if proc.returncode == 0:
+            return {"verdict": "VALID", "score": 1.0, "issues": [], "raw": raw}
+
+        error_text = proc.stderr or proc.stdout or ""
+        issue_lines = []
+        for line in error_text.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            if "warning" in line.lower() and "error" not in line.lower():
+                continue
+            issue_lines.append(line)
+        if not issue_lines:
+            issue_lines = [f"exit code {proc.returncode}"]
+        return {
+            "verdict": "INVALID",
+            "score": 0.0,
+            "issues": issue_lines[-6:],
+            "raw": raw,
+        }
+    finally:
+        try:
+            os.unlink(artifact_path)
+        except OSError:
+            pass
+
+
+def _evaluate_node(text: str, evaluator: str) -> dict:
+    """Dispatch an evaluator directive to the right backend.
+
+    Returns ``{verdict, score, issues, raw}`` for every form. This is the
+    single entry point used by refinement combinators (``iterate``) so that
+    a caller can mix LLM-based and execution-grounded evaluators without
+    caring which is which.
+
+    Evaluator forms:
+
+    - ``validate:<type>`` — LLM validator against a registered type
+      (continuous score, actionable issues from the validator's JSON output).
+    - ``exec:<shell cmd>`` — ground-truth executor. Binary score from exit
+      code, stderr parsed into issues. See :func:`_exec_evaluate`.
+    - ``score:<criterion>`` — ad-hoc LLM scoring via haiku. Continuous score
+      plus a single ``reason`` sentence (packed into ``issues`` for
+      downstream uniformity).
+    """
+    if evaluator.startswith("validate:"):
+        type_name = evaluator[len("validate:") :].strip()
+        return _validate_via_subprocess(text, type_name)
+
+    if evaluator.startswith("exec:"):
+        cmd = evaluator[len("exec:") :].strip()
+        return _exec_evaluate(text, cmd)
+
+    if evaluator.startswith("score:"):
+        score, reason = _score_node(text, evaluator)
+        verdict = "VALID" if score >= 0.95 else ("PARTIAL" if score > 0 else "INVALID")
+        return {
+            "verdict": verdict,
+            "score": score,
+            "issues": [reason] if reason and score < 1.0 else [],
+            "raw": reason,
+        }
+
+    raise ValueError(
+        f"Unknown evaluator form: {evaluator!r}. "
+        "Use 'validate:<type>', 'exec:<cmd>', or 'score:<criterion>'."
+    )
+
+
+def _validate_via_subprocess(text: str, type_name: str, timeout_s: int = 90) -> dict:
+    """Run a type validator via ``claude -p --model haiku`` subprocess.
+
+    Fast path for type validation — avoids the per-call docker container
+    startup cost that the agent-based validator path pays. Used by
+    ``iterate`` so a long refinement loop isn't bottlenecked on container
+    overhead per iteration.
+
+    Returns the dict produced by :func:`parse_validation_response`:
+    ``{verdict, score, issues, raw}``. Errors are surfaced as an
+    ``UNKNOWN`` verdict with score 0.0 and the error in ``issues``.
+    """
+    type_content = get_type(type_name)
+    if not type_content:
+        return {
+            "verdict": "UNKNOWN",
+            "score": 0.0,
+            "issues": [f"type '{type_name}' not found in registry"],
+            "raw": "",
+        }
+
+    validation_prompt = build_validation_prompt(text, type_content)
+    claude_bin = shutil.which("claude") or "claude"
+    try:
+        proc = subprocess.run(
+            [claude_bin, "-p", "--model", "haiku", validation_prompt],
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            "verdict": "UNKNOWN",
+            "score": 0.0,
+            "issues": [f"validator timed out after {timeout_s}s"],
+            "raw": "",
+        }
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout or "")[:400]
+        return {
+            "verdict": "UNKNOWN",
+            "score": 0.0,
+            "issues": [f"validator exited {proc.returncode}: {err}"],
+            "raw": err,
+        }
+    return parse_validation_response(proc.stdout or "")
+
+
+def _score_node(text: str, evaluator: str) -> tuple[float, str]:
+    """Score a candidate node against an evaluator directive.
+
+    Returns (score in [0.0, 1.0], reason). Raises ValueError on malformed
+    evaluator. Network failures propagate as exceptions so the caller can
+    treat them as score=0 with a reason.
+
+    Evaluator forms:
+        "score:<criterion>"   — shells out to ``claude -p --model haiku``
+                                with a scoring prompt (OAuth via keychain)
+        "validate:<type>"     — resolves the type and runs a validator agent;
+                                the validator emits a continuous score in
+                                [0.0, 1.0] along with actionable issues, which
+                                are surfaced on the returned reason string
+    """
+    if evaluator.startswith("score:"):
+        criterion = evaluator[len("score:"):].strip()
+        scoring_prompt = (
+            "You are a scoring oracle for a tree-search system. "
+            "Score the content against the criterion. "
+            "1.0 = perfect, 0.5 = acceptable, 0.0 = unusable. "
+            "Respond with ONE JSON object only, no markdown fences, no prose: "
+            '{"score": <float 0..1>, "reason": "<one sentence>"}\n\n'
+            f"Criterion: {criterion}\n\n"
+            f"Content:\n{text[:4000]}"
+        )
+        claude_bin = shutil.which("claude") or "claude"
+        try:
+            proc = subprocess.run(
+                [claude_bin, "-p", "--model", "haiku", scoring_prompt],
+                capture_output=True,
+                text=True,
+                timeout=90,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError("scoring subprocess timed out after 90s") from e
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"claude -p exited {proc.returncode}: {(proc.stderr or proc.stdout)[:400]}"
+            )
+        raw = (proc.stdout or "").strip()
+        if raw.startswith("```"):
+            parts = raw.split("```")
+            raw = parts[1] if len(parts) > 1 else raw
+            if raw.startswith("json\n"):
+                raw = raw[5:]
+            raw = raw.strip()
+        if not raw:
+            raise RuntimeError("claude -p returned empty output")
+        first_brace = raw.find("{")
+        last_brace = raw.rfind("}")
+        if first_brace >= 0 and last_brace > first_brace:
+            raw = raw[first_brace:last_brace + 1]
+        data = json.loads(raw)
+        score = float(data.get("score", 0.0))
+        return max(0.0, min(1.0, score)), str(data.get("reason", ""))
+
+    if evaluator.startswith("validate:"):
+        type_name = evaluator[len("validate:") :].strip()
+        type_content = get_type(type_name)
+        if not type_content:
+            raise ValueError(f"Type '{type_name}' not found in registry")
+        prompt = build_validation_prompt(text, type_content)
+        spec = _resolve_spec(None, model="haiku", timeout=60)
+        run_id = _generate_run_id()
+        result = _run_with_semaphore(prompt, spec, run_id, "validator")
+        parsed = parse_validation_response(result.text or "")
+        reason = f"verdict={parsed['verdict']}"
+        if parsed["issues"]:
+            reason += f"; issues: {'; '.join(parsed['issues'][:3])}"
+        return parsed["score"], reason
+
+    raise ValueError(
+        f"Unknown evaluator form: {evaluator!r}. "
+        "Use 'score:<criterion>' or 'validate:<type>'."
+    )
+
+
+@mcp.tool()
+def beam(
+    prompt: str,
+    width: int = 3,
+    evaluator: str = "score:overall quality, rigour, and correctness",
+    sandbox: str | None = None,
+    model: str = "sonnet",
+    timeout: int | None = None,
+    mcps: str | list | None = None,
+    keep_losers: bool = True,
+    budget: float | None = None,
+    max_concurrency: int = 5,
+) -> str:
+    """Sample N candidates in parallel, score each, commit to the top-1.
+
+    The simplest search combinator: proposes ``width`` candidates via ``par``,
+    scores each with a cheap haiku evaluator, and returns the highest-scoring
+    ref. Losing candidates are preserved on the winner's ``search.alternatives``
+    field (unless ``keep_losers`` is false). This is self-consistency /
+    majority-vote with arbitrary scoring — the same shape as the governor
+    beam search, but applied to arbitrary agent output.
+
+    Evaluator forms:
+
+    - ``score:<criterion>`` — direct haiku call, returns a float in [0, 1]
+      plus a reason string. Use for rubric-style scoring.
+    - ``validate:<type>`` — runs the type validator; VALID=1.0, PARTIAL=0.5,
+      INVALID=0.0. Use when the acceptance criterion is a registered type.
+
+    Budget semantics: a hard cap on total proposer spend. If exceeded, the
+    winner's search stamp records ``prune_reason="budget exhausted"`` but the
+    result is still returned — best-effort rather than abort. Evaluator cost
+    is not counted against ``budget`` for phase 1; evaluators are already
+    constrained to haiku.
+
+    Anti-pattern: the Tree Search paper flags evaluator-as-expensive-as-proposer
+    as a non-starter. This combinator hardcodes haiku for scoring — if you
+    need a stronger evaluator, lift that logic into a governor instead.
+
+    Args:
+        prompt: Task prompt sent to every candidate agent.
+        width: Number of parallel candidates (default: 3).
+        evaluator: Scoring directive. Must start with ``score:`` or ``validate:``.
+        sandbox: Named sandbox spec or inline JSON for candidate agents.
+        model: Candidate agent model (default: sonnet — the proposer).
+        timeout: Per-candidate timeout in seconds.
+        mcps: JSON array of MCP server names attached to candidates.
+        keep_losers: Preserve losing candidates on winner search stamp
+            (default: true — useful for inspection + future step-lookahead).
+        budget: Total USD cap on proposer cost. Best-so-far semantics on breach.
+        max_concurrency: Upper bound on concurrent candidate agents.
+
+    Returns:
+        JSON with ``run_id``, ``winner`` ref (search-stamped), ``scores``, and
+        ``total_cost``. If all candidates scored 0, ``error`` is populated.
+    """
+    try:
+        if width < 1:
+            return json.dumps(response_tools.error_response(
+                "invalid_input", "width must be ≥ 1"
+            ))
+        if not evaluator or ":" not in evaluator:
+            return json.dumps(response_tools.error_response(
+                "invalid_input",
+                "evaluator must be 'score:<criterion>' or 'validate:<type>'",
+            ))
+
+        task_list = [
+            {
+                "prompt": prompt,
+                "sandbox": sandbox,
+                "model": model,
+                "timeout": timeout,
+                "mcps": mcps,
+            }
+            for _ in range(width)
+        ]
+
+        run_id, results = _run_par_internal(task_list, max_concurrency)
+        total_cost = sum(r.cost_usd or 0 for r in results)
+        over_budget = budget is not None and total_cost > budget
+
+        def _score_one(r):
+            if r.error or not r.text:
+                return (0.0, f"agent error: {r.error or 'empty output'}", r)
+            try:
+                score, reason = _score_node(r.text, evaluator)
+                return (score, reason, r)
+            except Exception as e:
+                logger.warning("Scoring failed for %s: %s", r.agent_id, e)
+                return (0.0, f"scoring failed: {e}", r)
+
+        with ThreadPoolExecutor(max_workers=max(1, min(len(results), max_concurrency))) as ex:
+            scored: list = list(ex.map(_score_one, results))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        winner_score, winner_reason, winner_result = scored[0]
+
+        if winner_result.error or winner_score == 0.0:
+            data = {
+                "run_id": run_id,
+                "width": width,
+                "evaluator": evaluator,
+                "error": "All beam candidates failed or scored 0",
+                "total_cost": total_cost,
+                "candidates": [
+                    {
+                        "agent_id": r.agent_id,
+                        "score": s,
+                        "reason": reason,
+                        "error": r.error,
+                    }
+                    for s, reason, r in scored
+                ],
+            }
+            return json.dumps(data, default=str)
+
+        winner_ref = winner_result.to_ref_dict(run_id)
+
+        alternatives = []
+        if keep_losers:
+            for rank, (score, reason, r) in enumerate(scored[1:], start=1):
+                alt_ref = r.to_ref_dict(run_id)
+                stamps.stamp_search(
+                    alt_ref,
+                    score=score,
+                    depth=0,
+                    beam_rank=rank,
+                    evaluator=evaluator,
+                    pruned=True,
+                    prune_reason=f"beam cut at rank {rank}: {reason[:120]}",
+                )
+                alternatives.append(alt_ref)
+
+        stamps.stamp_search(
+            winner_ref,
+            score=winner_score,
+            depth=0,
+            beam_rank=0,
+            evaluator=evaluator,
+            pruned=False,
+            prune_reason="budget exhausted (best-so-far)" if over_budget else None,
+            alternatives=alternatives,
+        )
+
+        data = {
+            "run_id": run_id,
+            "width": width,
+            "evaluator": evaluator,
+            "total_cost": total_cost,
+            "budget_exhausted": over_budget,
+            "winner": winner_ref,
+            "winner_reason": winner_reason,
+            "scores": [
+                {"agent_id": r.agent_id, "score": s, "reason": reason}
+                for s, reason, r in scored
+            ],
+        }
+        return json.dumps(data, default=str)
+
+    except Exception as e:
+        logger.exception("beam failed")
+        return json.dumps(response_tools.error_response("beam_error", str(e)))
+
+
+@mcp.tool()
+def iterate(
+    prompt: str,
+    target_type: str | None = None,
+    evaluator: str | None = None,
+    max_iterations: int = 10,
+    success_threshold: float = 0.9,
+    patience: int = 3,
+    max_budget: float | None = None,
+    max_wall_time: int | None = None,
+    sandbox: str | None = None,
+    model: str = "sonnet",
+    timeout: int | None = None,
+    mcps: str | list | None = None,
+) -> str:
+    """Iteratively refine an agent's output until an evaluator is satisfied.
+
+    Runs the agent up to ``max_iterations`` times. Each iteration sees the
+    prior attempts' outputs, scores, and issues injected into its prompt, so
+    the agent can correct the specific shortcomings the evaluator called out
+    on the last pass. Halts when any of these become true:
+
+    - Evaluator score >= ``success_threshold`` (success).
+    - ``patience`` iterations pass with no improvement to the best score.
+    - Total agent cost exceeds ``max_budget`` (best-so-far).
+    - Wall-time exceeds ``max_wall_time`` seconds (best-so-far).
+    - ``max_iterations`` reached (best-so-far).
+
+    Evaluator forms (pass exactly one of ``target_type`` or ``evaluator``):
+
+    - ``target_type="some-type"`` — shorthand for
+      ``evaluator="validate:some-type"``. LLM validator against a registered
+      type. Best for text artifacts whose correctness is a matter of shape
+      and content.
+    - ``evaluator="validate:<type>"`` — explicit form of the above.
+    - ``evaluator="exec:<shell cmd>"`` — ground-truth executor. The agent's
+      output is written to a tempfile and the command runs with ``$ARTIFACT``
+      set to the path (and ``{artifact}`` substituted in the template).
+      Exit 0 scores 1.0; non-zero scores 0.0 with stderr parsed into issues.
+      Use for artifacts with compile/build/test semantics (``docker build``,
+      ``pytest``, etc.) — this is the only way to get ground-truth feedback.
+    - ``evaluator="score:<criterion>"`` — ad-hoc LLM rubric scoring via haiku.
+
+    Args:
+        prompt: Base task description sent to the agent on iteration 1; on
+            subsequent iterations it is augmented with a "Prior attempts"
+            section summarising previous outputs, scores, and issues.
+        target_type: Shorthand for ``evaluator="validate:<target_type>"``. Also
+            injects the type as ``output_type`` context on the agent prompt.
+        evaluator: Full evaluator directive (``validate:``, ``exec:``, or
+            ``score:``). Takes precedence over ``target_type`` if both given.
+        max_iterations: Hard cap on iteration count (default: 10).
+        success_threshold: Score at or above which we declare success
+            (default: 0.9). Must be in [0.0, 1.0].
+        patience: Halt if ``patience`` consecutive iterations fail to improve
+            on the best score so far (default: 3).
+        max_budget: Optional USD cap on total agent (proposer) cost. Evaluator
+            cost is not counted. Halts best-so-far on breach.
+        max_wall_time: Optional wall-time cap in seconds. Halts best-so-far
+            on breach.
+        sandbox: Named sandbox spec or inline JSON for the agent.
+        model: Agent (proposer) model (default: sonnet).
+        timeout: Per-iteration agent timeout in seconds.
+        mcps: JSON array of MCP server names attached to the agent.
+
+    Returns:
+        JSON with ``run_id``, ``iterations``, ``halted_because``,
+        ``best_iteration``, ``best_ref`` (validated-stamped), ``best_score``,
+        ``total_cost``, and the full ``attempts`` trace with per-iteration
+        ref / score / issues / cost.
+    """
+    try:
+        if max_iterations < 1:
+            return json.dumps(response_tools.error_response(
+                "invalid_input", "max_iterations must be ≥ 1",
+            ))
+        if not (0.0 <= success_threshold <= 1.0):
+            return json.dumps(response_tools.error_response(
+                "invalid_input", "success_threshold must be in [0.0, 1.0]",
+            ))
+        if patience < 1:
+            return json.dumps(response_tools.error_response(
+                "invalid_input", "patience must be ≥ 1",
+            ))
+        if not evaluator and not target_type:
+            return json.dumps(response_tools.error_response(
+                "invalid_input",
+                "must pass either target_type or evaluator",
+            ))
+
+        # Resolve evaluator: explicit wins over target_type shorthand.
+        resolved_evaluator = evaluator or f"validate:{target_type}"
+
+        # If the evaluator is a validate:<type>, sanity-check the type exists
+        # up-front so we fail fast rather than per-iteration.
+        if resolved_evaluator.startswith("validate:"):
+            type_name = resolved_evaluator[len("validate:") :].strip()
+            if not get_type(type_name):
+                return json.dumps(response_tools.error_response(
+                    "type_not_found",
+                    f"Type '{type_name}' not found in registry",
+                ))
+
+        run_id = _generate_run_id()
+        attempts: list = []
+        best_score = -1.0
+        best_iteration = -1
+        best_ref: dict | None = None
+        total_cost = 0.0
+        halted_because: str | None = None
+        iters_since_improvement = 0
+        t0 = time.monotonic()
+
+        for i in range(1, max_iterations + 1):
+            # Build this iteration's prompt. First iter is the base prompt;
+            # later iters inject a feedback section summarising what the
+            # validator said about prior attempts.
+            if attempts:
+                feedback_lines = [
+                    "",
+                    "# Prior attempts",
+                    (
+                        "Each entry below is an earlier attempt at this task, the "
+                        "validator's score against the target type, and the issues "
+                        "it flagged. Fix the issues. The current best score is "
+                        f"{best_score:.2f} — you need to beat it."
+                    ),
+                    "",
+                ]
+                for att in attempts:
+                    feedback_lines.append(
+                        f"## Attempt {att['iteration']} — score {att['score']:.2f}"
+                    )
+                    snippet = (att["output"] or "")[:800]
+                    if len(att["output"] or "") > 800:
+                        snippet += "…"
+                    feedback_lines.append("Output:")
+                    feedback_lines.append(snippet)
+                    if att["issues"]:
+                        feedback_lines.append("Issues to fix:")
+                        for iss in att["issues"]:
+                            feedback_lines.append(f"- {iss}")
+                    feedback_lines.append("")
+                feedback_lines.append("# Your task (iteration " + str(i) + ")")
+                feedback_lines.append(prompt)
+                full_prompt = "\n".join(feedback_lines)
+            else:
+                full_prompt = prompt
+
+            spec = _resolve_spec(
+                sandbox,
+                model=model,
+                timeout=timeout,
+                mcps=mcps,
+                output_type=target_type,
+            )
+            result = _run_with_semaphore(full_prompt, spec, run_id, f"iter-{i}")
+            total_cost += result.cost_usd or 0.0
+
+            if result.error or not result.text:
+                parsed = {
+                    "verdict": "UNKNOWN",
+                    "score": 0.0,
+                    "issues": [f"agent error: {result.error or 'empty output'}"],
+                    "raw": "",
+                }
+            else:
+                try:
+                    parsed = _evaluate_node(result.text, resolved_evaluator)
+                except Exception as e:
+                    logger.warning("evaluator failed on iter %d: %s", i, e)
+                    parsed = {
+                        "verdict": "UNKNOWN",
+                        "score": 0.0,
+                        "issues": [f"evaluator error: {e}"],
+                        "raw": "",
+                    }
+
+            attempt_ref = result.to_ref_dict(run_id)
+            stamps.stamp_validated(
+                attempt_ref,
+                target_type or resolved_evaluator,
+                parsed["verdict"],
+                validation_ref=None,
+                score=parsed["score"],
+                issues=parsed["issues"],
+            )
+            attempts.append({
+                "iteration": i,
+                "ref": attempt_ref,
+                "output": result.text or "",
+                "score": parsed["score"],
+                "verdict": parsed["verdict"],
+                "issues": parsed["issues"],
+                "cost_usd": result.cost_usd or 0.0,
+                "duration_seconds": result.duration_seconds,
+                "error": result.error,
+            })
+
+            improved = parsed["score"] > best_score
+            if improved:
+                best_score = parsed["score"]
+                best_iteration = i
+                best_ref = attempt_ref
+                iters_since_improvement = 0
+            else:
+                iters_since_improvement += 1
+
+            logger.info(
+                "iterate %s iter=%d score=%.2f best=%.2f stale=%d cost=$%.4f",
+                run_id, i, parsed["score"], best_score,
+                iters_since_improvement, total_cost,
+            )
+
+            if best_score >= success_threshold:
+                halted_because = "success_threshold"
+                break
+            if max_budget is not None and total_cost >= max_budget:
+                halted_because = "budget_exhausted"
+                break
+            if max_wall_time is not None and (time.monotonic() - t0) >= max_wall_time:
+                halted_because = "wall_time_exhausted"
+                break
+            if iters_since_improvement >= patience:
+                halted_because = "patience_exhausted"
+                break
+
+        if halted_because is None:
+            halted_because = "max_iterations"
+
+        # Build a compact trace without the full outputs (they're on disk).
+        trace = [
+            {
+                "iteration": att["iteration"],
+                "ref": att["ref"].get("ref"),
+                "score": att["score"],
+                "verdict": att["verdict"],
+                "issues": att["issues"],
+                "cost_usd": att["cost_usd"],
+                "duration_seconds": att["duration_seconds"],
+                "error": att["error"],
+            }
+            for att in attempts
+        ]
+
+        data = {
+            "run_id": run_id,
+            "target_type": target_type,
+            "evaluator": resolved_evaluator,
+            "iterations": len(attempts),
+            "halted_because": halted_because,
+            "best_iteration": best_iteration,
+            "best_score": best_score if best_score >= 0.0 else 0.0,
+            "best_ref": best_ref,
+            "total_cost": total_cost,
+            "wall_time_seconds": round(time.monotonic() - t0, 2),
+            "attempts": trace,
+        }
+        return json.dumps(data, default=str)
+
+    except Exception as e:
+        logger.exception("iterate failed")
+        return json.dumps(response_tools.error_response("iterate_error", str(e)))
 
 
 @mcp.tool()
@@ -1505,6 +2225,7 @@ def save_governor_spec(
     spec: str,
     description: str = "",
     model: str = "claude-haiku-4-5-20251001",
+    beam_width: int = 1,
 ) -> str:
     """Register an LLM-governed governor for use in pipeline control flow.
 
@@ -1519,7 +2240,8 @@ def save_governor_spec(
     - patch_pipeline  — deep-merge patch the pipeline definition and continue
 
     Each continuation also carries a free-form ``context`` dict that accumulates
-    across the pipeline and is written to /shared/governor-context.json.
+    across the pipeline and is written to /shared/governor-context.json, plus a
+    ``confidence`` score in [0.0, 1.0].
 
     Reference a governor in a pipeline step:
         "on_fail": {"governor": "Failure"}
@@ -1530,11 +2252,26 @@ def save_governor_spec(
         spec: Natural language description telling the LLM what to decide.
         description: One-line summary shown in list_governor_specs.
         model: Claude model for evaluation (default: haiku).
+        beam_width: Self-consistency beam width. When >1 the harness samples the
+            governor N times in parallel and commits to the confidence-weighted
+            majority decision. Losing candidates are preserved on the winner's
+            ``alternatives`` field for inspection. Default 1 (no beam).
     """
     try:
-        governor = GovernorSpec(name=name, spec=spec, description=description, model=model)
+        governor = GovernorSpec(
+            name=name,
+            spec=spec,
+            description=description,
+            model=model,
+            beam_width=beam_width,
+        )
         save_governor(governor)
-        return json.dumps({"saved": name, "model": model, "description": description})
+        return json.dumps({
+            "saved": name,
+            "model": model,
+            "description": description,
+            "beam_width": beam_width,
+        })
     except Exception as e:
         return json.dumps(response_tools.error_response("governor_save_error", str(e)))
 
@@ -1552,6 +2289,7 @@ def list_governor_specs() -> str:
                 "name": s.name,
                 "description": s.description,
                 "model": s.model,
+                "beam_width": s.beam_width,
                 "spec_preview": s.spec[:120],
             }
             for s in specs
@@ -1583,6 +2321,7 @@ def _run_pipeline_loop(
             spec=defn["spec"],
             model=defn.get("model", "claude-haiku-4-5-20251001"),
             description=defn.get("description", ""),
+            beam_width=int(defn.get("beam_width", 1)),
         )
         for name, defn in pipeline_def.get("governors", {}).items()
     }
@@ -1693,11 +2432,15 @@ def _run_pipeline_loop(
                     logger.error("on_fail governor '%s' not found in registry", on_fail["governor"])
                     break
                 try:
-                    cont = evaluate_governor(governor_spec, pipeline_def, step, results, governor_context)
+                    beam_width = on_fail.get("beam_width") or pipeline_def.get("governor_beam")
+                    cont = evaluate_governor_beam(
+                        governor_spec, pipeline_def, step, results, governor_context,
+                        beam_width=beam_width,
+                    )
                     governor_context.update(cont.context)
                     _write_governor_context(shared_dir, governor_context)
-                    logger.info("Governor '%s' on_fail: action=%s target=%s reason=%s",
-                                on_fail["governor"], cont.action, cont.target, cont.reason)
+                    logger.info("Governor '%s' on_fail: action=%s target=%s confidence=%.2f reason=%s",
+                                on_fail["governor"], cont.action, cont.target, cont.confidence, cont.reason)
                     new_i = _apply_governor_continuation(cont, pipeline_def, steps, step_id, run_id, results, spent_so_far)
                     if new_i is None:
                         break
@@ -1719,11 +2462,15 @@ def _run_pipeline_loop(
                 governor_spec = _resolve_governor(on_success["governor"])
                 if governor_spec is not None:
                     try:
-                        cont = evaluate_governor(governor_spec, pipeline_def, step, results, governor_context)
+                        beam_width = on_success.get("beam_width") or pipeline_def.get("governor_beam")
+                        cont = evaluate_governor_beam(
+                            governor_spec, pipeline_def, step, results, governor_context,
+                            beam_width=beam_width,
+                        )
                         governor_context.update(cont.context)
                         _write_governor_context(shared_dir, governor_context)
-                        logger.info("Governor '%s' on_success: action=%s target=%s",
-                                    on_success["governor"], cont.action, cont.target)
+                        logger.info("Governor '%s' on_success: action=%s target=%s confidence=%.2f",
+                                    on_success["governor"], cont.action, cont.target, cont.confidence)
                         new_i = _apply_governor_continuation(cont, pipeline_def, steps, step_id, run_id, results, spent_so_far)
                         if new_i is None:
                             break
@@ -2228,22 +2975,14 @@ def validate(
         run_id = _generate_run_id()
         result = _run_with_semaphore(prompt, spec, run_id, "validator")
 
-        # Parse verdict from output
-        verdict = "UNKNOWN"
-        if result.text:
-            for line in result.text.split("\n"):
-                line = line.strip()
-                if line in ("VALID", "PARTIAL", "INVALID"):
-                    verdict = line
-                    break
-                if line.startswith("VALID") or line.startswith("PARTIAL") or line.startswith("INVALID"):
-                    verdict = line.split()[0]
-                    break
+        parsed = parse_validation_response(result.text or "")
 
         data = {
             "run_id": run_id,
             "declared_type": declared_type,
-            "verdict": verdict,
+            "verdict": parsed["verdict"],
+            "score": parsed["score"],
+            "issues": parsed["issues"],
             "result": result.to_dict(),
         }
         return json.dumps(response_tools.truncate_response(data, f"validate_{run_id[:8]}"), default=str)

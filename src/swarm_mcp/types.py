@@ -16,8 +16,8 @@ or structured criteria — the format is intentionally flexible because these
 types are consumed by LLMs, not by a formal parser.
 """
 
+import json
 import logging
-import os
 import re
 
 from . import registry
@@ -25,6 +25,8 @@ from . import registry
 logger = logging.getLogger(__name__)
 
 MAX_RESOLVE_DEPTH = 3
+
+_VERDICT_SCORE_DEFAULTS = {"VALID": 1.0, "PARTIAL": 0.5, "INVALID": 0.0, "UNKNOWN": 0.0}
 
 
 def list_types() -> list[dict]:
@@ -136,9 +138,11 @@ def build_type_context(input_type: str | None, output_type: str | None) -> str:
 def build_validation_prompt(artifact_description: str, declared_type: str) -> str:
     """Build a prompt instructing an agent to validate an artifact against a type.
 
-    The resulting prompt follows a structured format that asks the validator to
-    evaluate each criterion and emit a ``VALID`` / ``PARTIAL`` / ``INVALID``
-    verdict in a machine-parseable section.
+    The resulting prompt asks the validator to emit a single JSON object with
+    a continuous ``score`` in [0, 1], a ``verdict`` string, and a list of
+    actionable ``issues``. The continuous score is the key signal for
+    iterative refinement loops: it tells a calling pipeline whether successive
+    attempts are converging, not just whether they crossed the pass threshold.
 
     Args:
         artifact_description: The artifact content or description to validate
@@ -152,7 +156,7 @@ def build_validation_prompt(artifact_description: str, declared_type: str) -> st
     """
     resolved_type = resolve_type(declared_type)
 
-    return f"""You are a type validator. Your job is to check whether an artifact matches its declared type.
+    return f"""You are a type validator. Your job is to check whether an artifact matches its declared type and report, in machine-readable form, both how well it matches and what would need to change to match better.
 
 # Declared Type
 {resolved_type}
@@ -161,17 +165,94 @@ def build_validation_prompt(artifact_description: str, declared_type: str) -> st
 {artifact_description}
 
 # Instructions
-1. Check each verification criterion listed in the type definition
-2. For each criterion, report PASS or FAIL with a brief explanation
-3. Give an overall verdict: VALID (all pass), PARTIAL (some fail), or INVALID (critical failures)
+1. Check each verification criterion listed in the type definition.
+2. Compute a continuous ``score`` in [0.0, 1.0]:
+   - 1.0 — every criterion is fully satisfied; nothing to improve
+   - 0.5 — partial; the artifact has the right shape but missing or wrong pieces
+   - 0.0 — the artifact fundamentally isn't this type
+   Intermediate values are fine and encouraged — a caller is using this score
+   to judge whether successive attempts are converging.
+3. List ``issues``: short, actionable strings saying what would need to change
+   to push the score higher. Empty list when score == 1.0.
+4. Set ``verdict``: "VALID" if score >= 0.95, "PARTIAL" if 0 < score < 0.95,
+   "INVALID" if score == 0.
 
-Respond in this exact format:
-## Checks
-- [criterion]: PASS/FAIL — explanation
-- [criterion]: PASS/FAIL — explanation
+Respond with ONE JSON object only — no markdown fences, no prose before or
+after. Schema:
 
-## Verdict
-VALID/PARTIAL/INVALID
+{{"verdict": "VALID" | "PARTIAL" | "INVALID",
+  "score": <float in [0.0, 1.0]>,
+  "issues": ["<actionable issue 1>", "<actionable issue 2>"]}}"""
 
-## Issues
-(list any failures that need fixing, or "None" if all passed)"""
+
+def parse_validation_response(text: str) -> dict:
+    """Parse a validator's output into ``{verdict, score, issues, raw}``.
+
+    Tries JSON first (the modern format from :func:`build_validation_prompt`),
+    then falls back to line-scanning for a ``VALID`` / ``PARTIAL`` / ``INVALID``
+    verdict token so old-format validators and noisy outputs still produce a
+    usable result. When falling back, ``score`` is derived from the verdict
+    via :data:`_VERDICT_SCORE_DEFAULTS` and ``issues`` is an empty list.
+
+    The ``raw`` field preserves the original validator text for audit.
+
+    Args:
+        text: Raw text output from a validator agent. May contain markdown
+            fences, thinking tokens, or free prose around the JSON.
+
+    Returns:
+        A dict with keys:
+            - ``verdict`` (str): one of ``VALID``, ``PARTIAL``, ``INVALID``, ``UNKNOWN``.
+            - ``score`` (float): continuous score in [0.0, 1.0].
+            - ``issues`` (list[str]): actionable issues, possibly empty.
+            - ``raw`` (str): original validator text.
+    """
+    if not text:
+        return {"verdict": "UNKNOWN", "score": 0.0, "issues": [], "raw": ""}
+
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        parts = cleaned.split("```")
+        if len(parts) > 1:
+            cleaned = parts[1]
+            if cleaned.startswith("json\n"):
+                cleaned = cleaned[5:]
+            cleaned = cleaned.strip()
+
+    first_brace = cleaned.find("{")
+    last_brace = cleaned.rfind("}")
+    if first_brace >= 0 and last_brace > first_brace:
+        candidate = cleaned[first_brace : last_brace + 1]
+        try:
+            data = json.loads(candidate)
+            verdict = str(data.get("verdict", "UNKNOWN")).upper()
+            if verdict not in _VERDICT_SCORE_DEFAULTS:
+                verdict = "UNKNOWN"
+            try:
+                score = float(data.get("score", _VERDICT_SCORE_DEFAULTS[verdict]))
+            except (TypeError, ValueError):
+                score = _VERDICT_SCORE_DEFAULTS[verdict]
+            score = max(0.0, min(1.0, score))
+            raw_issues = data.get("issues") or []
+            if isinstance(raw_issues, str):
+                raw_issues = [raw_issues]
+            issues = [str(i) for i in raw_issues if i]
+            return {"verdict": verdict, "score": score, "issues": issues, "raw": text}
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+    verdict = "UNKNOWN"
+    for line in text.split("\n"):
+        line = line.strip()
+        if line in ("VALID", "PARTIAL", "INVALID"):
+            verdict = line
+            break
+        if line.startswith(("VALID", "PARTIAL", "INVALID")):
+            verdict = line.split()[0]
+            break
+    return {
+        "verdict": verdict,
+        "score": _VERDICT_SCORE_DEFAULTS[verdict],
+        "issues": [],
+        "raw": text,
+    }
