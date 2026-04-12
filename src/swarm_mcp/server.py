@@ -1854,6 +1854,185 @@ def iterate(
 
 
 @mcp.tool()
+def score_list(
+    refs: str | list,
+    evaluator: str,
+    top_k: int = 0,
+    max_concurrency: int = 5,
+) -> str:
+    """Score and rank a list of existing refs against an evaluator.
+
+    This is the missing piece for "generate N candidates, then pick the best"
+    pipelines where the N candidates already exist as refs from an upstream
+    combinator (``map``, ``par``, etc.) — ``beam`` is the wrong shape because
+    it fans out width-N proposers of the *same* prompt, whereas ``score_list``
+    takes N different outputs and ranks them.
+
+    The key infrastructure point: refs are resolved to their artifact text
+    **server-side**, so callers do not need to pipe full artifact text
+    through tool parameters. This clears the ~4KB param-size wall you would
+    otherwise hit scoring 6+ medium-length artifacts through ``map``.
+
+    Evaluator forms are the same as ``iterate`` / ``beam``:
+
+    - ``validate:<type>`` — LLM validator against a registered type
+    - ``score:<criterion>`` — ad-hoc haiku rubric
+    - ``exec:<shell-cmd>`` — ground-truth shell command (exit code scoring)
+
+    Each ref is tagged with a ``search`` stamp carrying its score and
+    ``beam_rank``. Refs outside the top-``k`` are marked ``pruned=True``
+    with a reason pointing at the beam cut. ``top_k=0`` means return all
+    without pruning.
+
+    Args:
+        refs: JSON array of refs — either ``["run_id/agent_id", ...]`` or
+            ``[{"ref": "run_id/agent_id"}, ...]``. Both forms are accepted.
+        evaluator: Scoring directive (``validate:<type>``, ``score:<criterion>``,
+            or ``exec:<cmd>``).
+        top_k: How many top-scoring refs to surface as winners. ``0`` means
+            rank-only, no pruning stamp applied.
+        max_concurrency: Upper bound on parallel evaluator calls (default: 5).
+
+    Returns:
+        JSON with ``run_id``, ``evaluator``, ``total``, ``top_k``,
+        ``winners`` (list of winning ref strings), and ``ranked`` (the full
+        per-ref trace: rank, ref, score, verdict, issues, reason).
+    """
+    try:
+        if isinstance(refs, str):
+            try:
+                refs_list = json.loads(refs)
+            except json.JSONDecodeError:
+                return json.dumps(response_tools.error_response(
+                    "invalid_input",
+                    "refs must be a JSON array of ref strings or ref dicts",
+                ))
+        else:
+            refs_list = list(refs)
+
+        if not refs_list:
+            return json.dumps(response_tools.error_response(
+                "invalid_input", "refs list is empty",
+            ))
+        if not evaluator or ":" not in evaluator:
+            return json.dumps(response_tools.error_response(
+                "invalid_input",
+                "evaluator must be 'score:<criterion>', 'validate:<type>', or 'exec:<cmd>'",
+            ))
+        if top_k < 0:
+            return json.dumps(response_tools.error_response(
+                "invalid_input", "top_k must be ≥ 0",
+            ))
+
+        run_id = _generate_run_id()
+
+        normalised: list = []
+        for item in refs_list:
+            if isinstance(item, str):
+                normalised.append({"ref": item})
+            elif isinstance(item, dict):
+                if "ref" not in item:
+                    return json.dumps(response_tools.error_response(
+                        "invalid_input", f"ref dict missing 'ref' key: {item}",
+                    ))
+                normalised.append(dict(item))
+            else:
+                return json.dumps(response_tools.error_response(
+                    "invalid_input", f"ref items must be strings or dicts, got {type(item).__name__}",
+                ))
+
+        def _score_one(ref_obj):
+            try:
+                text = _resolve_ref(ref_obj["ref"])
+            except FileNotFoundError:
+                return {
+                    "verdict": "UNKNOWN",
+                    "score": 0.0,
+                    "issues": [f"ref not found: {ref_obj['ref']}"],
+                    "raw": "",
+                }
+            except Exception as e:
+                return {
+                    "verdict": "UNKNOWN",
+                    "score": 0.0,
+                    "issues": [f"ref resolve failed: {e}"],
+                    "raw": "",
+                }
+            if not text:
+                return {
+                    "verdict": "UNKNOWN",
+                    "score": 0.0,
+                    "issues": ["ref has empty text"],
+                    "raw": "",
+                }
+            try:
+                return _evaluate_node(text, evaluator)
+            except Exception as e:
+                logger.warning("scoring failed for %s: %s", ref_obj["ref"], e)
+                return {
+                    "verdict": "UNKNOWN",
+                    "score": 0.0,
+                    "issues": [f"evaluator error: {e}"],
+                    "raw": "",
+                }
+
+        workers = max(1, min(len(normalised), max_concurrency))
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            scored = list(ex.map(_score_one, normalised))
+
+        paired = sorted(
+            zip(normalised, scored),
+            key=lambda ps: -ps[1]["score"],
+        )
+
+        cut = top_k if top_k > 0 else len(paired)
+        winners_refs: list = []
+        ranked: list = []
+        for rank_index, (ref_obj, parsed) in enumerate(paired):
+            rank = rank_index + 1
+            pruned = top_k > 0 and rank > top_k
+            prune_reason = (
+                f"below top {top_k}: rank={rank}, score={parsed['score']:.2f}"
+                if pruned
+                else None
+            )
+            stamps.stamp_search(
+                ref_obj,
+                score=parsed["score"],
+                depth=0,
+                beam_rank=rank_index,
+                evaluator=evaluator,
+                pruned=pruned,
+                prune_reason=prune_reason,
+            )
+            ranked.append({
+                "rank": rank,
+                "ref": ref_obj["ref"],
+                "score": parsed["score"],
+                "verdict": parsed.get("verdict"),
+                "issues": parsed.get("issues") or [],
+                "reason": (parsed.get("raw") or "")[:400],
+                "pruned": pruned,
+            })
+            if not pruned:
+                winners_refs.append(ref_obj["ref"])
+
+        data = {
+            "run_id": run_id,
+            "evaluator": evaluator,
+            "total": len(normalised),
+            "top_k": top_k,
+            "winners": winners_refs[:cut],
+            "ranked": ranked,
+        }
+        return json.dumps(data, default=str)
+
+    except Exception as e:
+        logger.exception("score_list failed")
+        return json.dumps(response_tools.error_response("score_list_error", str(e)))
+
+
+@mcp.tool()
 def guard(
     ref: str,
     check: str,
