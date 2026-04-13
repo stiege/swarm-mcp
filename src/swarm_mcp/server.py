@@ -485,9 +485,11 @@ def map(
         effort: Effort level: low, medium, high, max.
     """
     try:
+        logger.info("map received inputs: %d chars", len(inputs) if inputs else 0)
         input_list = json.loads(inputs)
         if not isinstance(input_list, list) or len(input_list) == 0:
             return json.dumps(response_tools.error_response("invalid_input", "inputs must be a non-empty JSON array"))
+        logger.info("map parsed inputs: %d items", len(input_list))
 
         task_list = [
             {
@@ -1900,6 +1902,7 @@ def score_list(
     """
     try:
         if isinstance(refs, str):
+            logger.info("score_list received refs: %d chars (string)", len(refs))
             try:
                 refs_list = json.loads(refs)
             except json.JSONDecodeError:
@@ -1909,11 +1912,13 @@ def score_list(
                 ))
         else:
             refs_list = list(refs)
+            logger.info("score_list received refs: %d items (list)", len(refs_list))
 
         if not refs_list:
             return json.dumps(response_tools.error_response(
                 "invalid_input", "refs list is empty",
             ))
+        logger.info("score_list parsed refs: %d items", len(refs_list))
         if not evaluator or ":" not in evaluator:
             return json.dumps(response_tools.error_response(
                 "invalid_input",
@@ -2030,6 +2035,336 @@ def score_list(
     except Exception as e:
         logger.exception("score_list failed")
         return json.dumps(response_tools.error_response("score_list_error", str(e)))
+
+
+@mcp.tool()
+def hunt(
+    strategies: str | list,
+    max_parallel_strategies: int = 5,
+    top_k_global: int = 10,
+) -> str:
+    """Run multiple (fetch → map → score) hunt strategies in parallel and merge.
+
+    Each strategy is an independent (fetch, plan, score) triple with its own
+    seed prompt or explicit seeds, plan template, and rubric. Strategies run
+    concurrently; a failure in one does not halt the others. All scored refs
+    across all strategies are merged into a single globally-ranked leaderboard
+    so you can see which strategy produced the highest-yield finding.
+
+    This is the compound combinator that makes "run all the hunt framings
+    at once" tractable — rather than sequentially trying one hunt shape at a
+    time, you parallelise across framings (problem-driven, gap-in-field,
+    broken-claims, tool-landscape, connection) and let the scoring sort them.
+
+    Strategy dict fields:
+
+    - ``name`` (required) — short label used for tagging and per-strategy
+      reporting in the leaderboard.
+    - ``seeds`` (optional) — pre-supplied list of seed strings (each becomes
+      a map input). Exactly one of ``seeds`` or ``fetcher_prompt`` must be set.
+    - ``fetcher_prompt`` (optional) — prompt sent to a single ``run`` call
+      that must emit a JSON array of seed strings (or a JSON object with a
+      ``seeds`` key). The agent runs with network enabled.
+    - ``planner_template`` (required) — prompt template for the map step.
+      Use ``{input}`` as the placeholder for each seed.
+    - ``rubric`` (required) — evaluator directive for the score step. Any
+      form accepted by ``_evaluate_node``: ``validate:<type>``,
+      ``score:<criterion>``, or ``exec:<cmd>``.
+    - ``top_k`` (optional, default 3) — how many winners this strategy
+      contributes to the unified leaderboard.
+    - ``model_planner`` (optional, default "haiku") — model for the map step.
+    - ``model_fetcher`` (optional, default "haiku") — model for the fetch step.
+    - ``timeout`` (optional) — per-agent timeout in seconds.
+
+    Args:
+        strategies: JSON array of strategy dicts (or a Python list).
+        max_parallel_strategies: Upper bound on strategies running at once
+            (default: 5). Each strategy internally parallelises its map step.
+        top_k_global: Size of the unified leaderboard across all strategies
+            (default: 10).
+
+    Returns:
+        JSON with ``run_id``, ``strategies`` (per-strategy summary including
+        name, error-if-any, total_cost, winner_ref, best_score), and
+        ``leaderboard`` (globally-ranked list tagged by strategy). The full
+        per-ref scoring trace lives at ``strategy_details[i].ranked``.
+    """
+    try:
+        if isinstance(strategies, str):
+            logger.info("hunt received strategies: %d chars", len(strategies))
+            try:
+                strategy_list = json.loads(strategies)
+            except json.JSONDecodeError as e:
+                return json.dumps(response_tools.error_response(
+                    "invalid_input", f"strategies must be a JSON array: {e}",
+                ))
+        else:
+            strategy_list = list(strategies)
+
+        if not strategy_list:
+            return json.dumps(response_tools.error_response(
+                "invalid_input", "strategies list is empty",
+            ))
+
+        # Validate every strategy up-front so we fail fast on bad config.
+        for i, s in enumerate(strategy_list):
+            if not isinstance(s, dict):
+                return json.dumps(response_tools.error_response(
+                    "invalid_input", f"strategies[{i}] must be a dict",
+                ))
+            if not s.get("name"):
+                return json.dumps(response_tools.error_response(
+                    "invalid_input", f"strategies[{i}] missing 'name'",
+                ))
+            if not s.get("planner_template"):
+                return json.dumps(response_tools.error_response(
+                    "invalid_input", f"strategies[{i}] missing 'planner_template'",
+                ))
+            if not s.get("rubric"):
+                return json.dumps(response_tools.error_response(
+                    "invalid_input", f"strategies[{i}] missing 'rubric'",
+                ))
+            has_seeds = bool(s.get("seeds"))
+            has_fetcher = bool(s.get("fetcher_prompt"))
+            if not (has_seeds or has_fetcher):
+                return json.dumps(response_tools.error_response(
+                    "invalid_input",
+                    f"strategies[{i}] ({s['name']}) must have either 'seeds' or 'fetcher_prompt'",
+                ))
+
+        hunt_run_id = _generate_run_id()
+        logger.info("hunt %s: running %d strategies", hunt_run_id, len(strategy_list))
+
+        def _run_strategy(strategy: dict) -> dict:
+            """Execute one strategy's fetch → map → score chain."""
+            name = strategy["name"]
+            result = {
+                "name": name,
+                "error": None,
+                "seeds_count": 0,
+                "plans_count": 0,
+                "fetch_cost": 0.0,
+                "plan_cost": 0.0,
+                "total_cost": 0.0,
+                "winner_ref": None,
+                "best_score": 0.0,
+                "ranked": [],
+            }
+
+            try:
+                # ── Stage 1: resolve seeds (either explicit or via fetcher) ──
+                if strategy.get("seeds"):
+                    seeds = list(strategy["seeds"])
+                else:
+                    fetcher_prompt = strategy["fetcher_prompt"]
+                    fetcher_spec = _resolve_spec(
+                        None,
+                        model=strategy.get("model_fetcher", "haiku"),
+                        timeout=strategy.get("timeout", 120),
+                        network=True,
+                    )
+                    fetch_result = _run_with_semaphore(
+                        fetcher_prompt,
+                        fetcher_spec,
+                        hunt_run_id,
+                        f"{name}-fetch",
+                    )
+                    result["fetch_cost"] = fetch_result.cost_usd or 0.0
+                    if fetch_result.error or not fetch_result.text:
+                        raise RuntimeError(
+                            f"fetcher failed: {fetch_result.error or 'empty output'}"
+                        )
+                    fetched_text = fetch_result.text.strip()
+                    if fetched_text.startswith("```"):
+                        parts = fetched_text.split("```")
+                        fetched_text = parts[1] if len(parts) > 1 else fetched_text
+                        if fetched_text.startswith("json\n"):
+                            fetched_text = fetched_text[5:]
+                        fetched_text = fetched_text.strip()
+                    first_bracket = fetched_text.find("[")
+                    first_brace = fetched_text.find("{")
+                    if first_bracket < 0 and first_brace < 0:
+                        raise RuntimeError("fetcher output contains no JSON")
+                    if first_bracket >= 0 and (first_brace < 0 or first_bracket < first_brace):
+                        last_bracket = fetched_text.rfind("]")
+                        parsed_seeds = json.loads(fetched_text[first_bracket : last_bracket + 1])
+                    else:
+                        last_brace = fetched_text.rfind("}")
+                        wrapper = json.loads(fetched_text[first_brace : last_brace + 1])
+                        if isinstance(wrapper, dict) and "seeds" in wrapper:
+                            parsed_seeds = wrapper["seeds"]
+                        elif isinstance(wrapper, list):
+                            parsed_seeds = wrapper
+                        else:
+                            # Last-ditch: look for the first list value in the dict
+                            lists = [v for v in wrapper.values() if isinstance(v, list)]
+                            if not lists:
+                                raise RuntimeError(
+                                    "fetcher JSON did not contain a list of seeds"
+                                )
+                            parsed_seeds = lists[0]
+                    seeds = [
+                        s if isinstance(s, str) else json.dumps(s, default=str)
+                        for s in parsed_seeds
+                    ]
+
+                if not seeds:
+                    raise RuntimeError("no seeds produced")
+                result["seeds_count"] = len(seeds)
+                logger.info("hunt %s strategy %s: %d seeds", hunt_run_id, name, len(seeds))
+
+                # ── Stage 2: map planner over seeds ──
+                planner_template = strategy["planner_template"]
+                planner_model = strategy.get("model_planner", "haiku")
+                planner_timeout = strategy.get("timeout", 180)
+                plan_tasks = [
+                    {
+                        "prompt": planner_template.replace("{input}", str(seed)),
+                        "model": planner_model,
+                        "timeout": planner_timeout,
+                        "network": True,
+                    }
+                    for seed in seeds
+                ]
+                plan_run_id, plan_results = _run_par_internal(
+                    plan_tasks, max_concurrency=min(len(plan_tasks), MAX_CONCURRENT)
+                )
+                result["plan_cost"] = sum(r.cost_usd or 0 for r in plan_results)
+                result["plans_count"] = sum(
+                    1 for r in plan_results if not r.error and r.text
+                )
+
+                # ── Stage 3: score each plan via _evaluate_node ──
+                rubric = strategy["rubric"]
+
+                def _score_one(r):
+                    if r.error or not r.text:
+                        return (
+                            r,
+                            {
+                                "verdict": "UNKNOWN",
+                                "score": 0.0,
+                                "issues": [f"agent error: {r.error or 'empty output'}"],
+                                "raw": "",
+                            },
+                        )
+                    try:
+                        return (r, _evaluate_node(r.text, rubric))
+                    except Exception as e:
+                        return (
+                            r,
+                            {
+                                "verdict": "UNKNOWN",
+                                "score": 0.0,
+                                "issues": [f"evaluator error: {e}"],
+                                "raw": "",
+                            },
+                        )
+
+                with ThreadPoolExecutor(max_workers=min(len(plan_results), 5)) as ex:
+                    scored_pairs = list(ex.map(_score_one, plan_results))
+
+                scored_pairs.sort(key=lambda p: -p[1]["score"])
+                top_k = int(strategy.get("top_k", 3))
+
+                ranked = []
+                for rank_index, (r, parsed) in enumerate(scored_pairs):
+                    rank = rank_index + 1
+                    ref_obj = r.to_ref_dict(plan_run_id)
+                    pruned = rank > top_k
+                    stamps.stamp_search(
+                        ref_obj,
+                        score=parsed["score"],
+                        depth=0,
+                        beam_rank=rank_index,
+                        evaluator=rubric,
+                        pruned=pruned,
+                        prune_reason=f"below strategy top_k={top_k}" if pruned else None,
+                    )
+                    ranked.append({
+                        "rank": rank,
+                        "strategy": name,
+                        "ref": ref_obj.get("ref"),
+                        "score": parsed["score"],
+                        "verdict": parsed.get("verdict"),
+                        "issues": parsed.get("issues") or [],
+                        "reason": (parsed.get("raw") or "")[:400],
+                        "cost_usd": r.cost_usd or 0.0,
+                        "pruned": pruned,
+                        "seed_preview": str(seeds[plan_results.index(r)])[:200]
+                        if r in plan_results
+                        else "",
+                    })
+
+                result["ranked"] = ranked
+                result["total_cost"] = result["fetch_cost"] + result["plan_cost"]
+                if ranked:
+                    winner = ranked[0]
+                    result["winner_ref"] = winner["ref"]
+                    result["best_score"] = winner["score"]
+                return result
+
+            except Exception as e:
+                logger.exception("hunt strategy %s failed", name)
+                result["error"] = str(e)
+                return result
+
+        # Run strategies in parallel — each strategy internally fans out further.
+        workers = max(1, min(len(strategy_list), max_parallel_strategies))
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            strategy_results = list(ex.map(_run_strategy, strategy_list))
+
+        # Build unified leaderboard: all non-pruned entries from all strategies,
+        # re-ranked globally.
+        all_entries: list = []
+        for sr in strategy_results:
+            for entry in sr.get("ranked", []):
+                if not entry.get("pruned"):
+                    all_entries.append(entry)
+        all_entries.sort(key=lambda e: -e["score"])
+        leaderboard = []
+        for i, entry in enumerate(all_entries[:top_k_global]):
+            leaderboard.append({
+                "global_rank": i + 1,
+                "strategy": entry["strategy"],
+                "ref": entry["ref"],
+                "score": entry["score"],
+                "verdict": entry["verdict"],
+                "issues": entry["issues"][:3],
+                "reason": entry["reason"],
+                "seed_preview": entry.get("seed_preview", ""),
+            })
+
+        strategies_summary = [
+            {
+                "name": sr["name"],
+                "error": sr["error"],
+                "seeds_count": sr["seeds_count"],
+                "plans_count": sr["plans_count"],
+                "fetch_cost": sr["fetch_cost"],
+                "plan_cost": sr["plan_cost"],
+                "total_cost": sr["total_cost"],
+                "winner_ref": sr["winner_ref"],
+                "best_score": sr["best_score"],
+            }
+            for sr in strategy_results
+        ]
+
+        data = {
+            "run_id": hunt_run_id,
+            "strategies": strategies_summary,
+            "leaderboard": leaderboard,
+            "grand_total_cost": sum(sr["total_cost"] for sr in strategy_results),
+            "strategy_details": [
+                {"name": sr["name"], "ranked": sr.get("ranked", [])}
+                for sr in strategy_results
+            ],
+        }
+        return json.dumps(data, default=str)
+
+    except Exception as e:
+        logger.exception("hunt failed")
+        return json.dumps(response_tools.error_response("hunt_error", str(e)))
 
 
 @mcp.tool()
