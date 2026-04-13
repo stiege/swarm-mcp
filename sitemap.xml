@@ -2,70 +2,70 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://stiege.github.io/swarm-mcp/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/contributing/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/installation/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/observability/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/quickstart/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/security/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/concepts/combinators/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/concepts/governors/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/concepts/mcps/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/concepts/pipelines/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/concepts/refs/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/concepts/resources/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/concepts/sandboxes/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/concepts/types/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/examples/code-review/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/examples/gpu-pipeline/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
     <url>
          <loc>https://stiege.github.io/swarm-mcp/examples/research/</loc>
-         <lastmod>2026-04-12</lastmod>
+         <lastmod>2026-04-13</lastmod>
     </url>
 </urlset>
